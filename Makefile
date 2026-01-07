@@ -11,14 +11,20 @@ LDFLAGS = -lssl -lcrypto -lcrypt32 -lws2_32
 TARGET = apiRequest.exe
 
 # Source files
-SRC = apiRequest.cpp
+OBJECTS = apiRequest.o timer.o
 
 # Default rule: runs when you type 'make'
 all: $(TARGET)
 
 # Rule to link the program
 $(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
+
+apiRequest.o: apiRequest.cpp timer.h
+	$(CXX) $(CXXFLAGS) -c apiRequest.cpp
+
+timer.o: timer.cpp timer.h
+	$(CXX) $(CXXFLAGS) -c timer.cpp
 
 # Rule to clean up build files (Windows CMD command)
 clean:
