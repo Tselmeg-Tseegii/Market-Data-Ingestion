@@ -18,3 +18,7 @@ auto Timer::stop() -> void {
 auto Timer::getDuration() -> double {
     return duration.count();
 }
+
+auto Timer::now() -> std::chrono::time_point<std::chrono::high_resolution_clock> {
+    return std::chrono::high_resolution_clock::now();
+}

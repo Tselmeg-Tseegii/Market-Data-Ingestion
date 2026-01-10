@@ -17,6 +17,8 @@ public:
     auto stop() -> void;
 
     auto getDuration() -> double;
+
+    auto now() ->  std::chrono::time_point<std::chrono::high_resolution_clock>;
 };
 
 #endif

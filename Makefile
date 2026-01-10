@@ -11,13 +11,13 @@ LDFLAGS = -lssl -lcrypto -lcrypt32 -lws2_32
 TARGET = apiRequest.exe
 
 # Source files
-OBJECTS = apiRequest.o timer.o
+OBJECTS = apiRequest.o timer.o nlohmann/json.hpp
 
 # Default rule: runs when you type 'make'
 all: $(TARGET)
 
 # Rule to link the program
-$(TARGET): $(SRC)
+$(TARGET): $(OBJECTS)
 	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJECTS) $(LDFLAGS)
 
 apiRequest.o: apiRequest.cpp timer.h
