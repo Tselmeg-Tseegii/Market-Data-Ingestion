@@ -14,6 +14,51 @@
 #define API_REQUESTS_PER_MIN 7
 #define API_REQUEST_INTERVAL_SEC 60 / API_REQUESTS_PER_MIN + 1
 
+struct PriceCandle {
+public:
+    double candleOpen;
+    double candleHigh;
+    double candleLow;
+    double candleClose;
+    int timeStamp;
+
+    PriceCandle(double open, double high, double low, double close, int time) 
+        : candleOpen {open}
+        , candleHigh {high}
+        , candleLow {low}
+        , candleClose {close}
+        , timeStamp {time}
+    {}
+
+    friend auto operator<<(std::ostream& out, PriceCandle& candle) -> std::ostream&;
+};
+
+auto operator<<(std::ostream& out, PriceCandle& candle) -> std::ostream& {
+    out << '(' << candle.candleOpen << ", " << candle.candleLow;
+    out << ", " << candle.candleHigh << ", " << candle.candleClose;
+    out << ", " << candle.timeStamp << ')';
+
+    return out;
+}
+
+class ReadDataThread;
+
+class PriceData {
+    friend class ReadDataThread;
+public:
+    std::string symbolName;
+    std::vector<PriceCandle> data;
+
+private:
+    std::mutex dataLock;
+
+    auto getMutex() -> std::mutex& {
+        return dataLock;
+    }
+
+    
+};
+
 class ReadDataThread {
 private:
     std::mutex stopSignalLock_;
@@ -21,24 +66,25 @@ private:
     bool stopReading_;
     std::thread thread_;
 
-    std::vector<double>& dataContainer_;
+    std::vector<PriceCandle>& dataContainer_;
     std::mutex& dataContainerMutex_;
 
     httplib::Client apiClient_;
     std::string apiRequestEndPoint_;
 
 public:
-    ReadDataThread(std::vector<double>& data, std::mutex& dataLock)
+    ReadDataThread(PriceData& container)
         : stopReading_ {false}
-        , dataContainer_ {data}
-        , dataContainerMutex_ {dataLock}
+        , dataContainer_ {container.data}
+        , dataContainerMutex_ {container.getMutex()}
         , apiClient_{"https://api.twelvedata.com"}
     {
         auto MY_API_KEY = std::string{std::getenv("TWELVEDATA_MY_API_KEY")};
-        auto dataTypeRequested = std::string{"/price"};
-        auto symbol = std::string{"EUR/USD"};
+        auto dataTypeRequested = std::string{"/quote"};
+        auto symbol = std::string{"XAU/USD"};
+        auto interval = std::string{"1min"};
 
-        apiRequestEndPoint_ = {dataTypeRequested + "?symbol=" + symbol + "&apikey=" + MY_API_KEY};
+        apiRequestEndPoint_ = {dataTypeRequested + "?symbol=" + symbol + "&interval" + interval + "&apikey=" + MY_API_KEY};
     }
 
     auto startThread() -> void {
@@ -55,22 +101,23 @@ public:
     }
 
 private:
-    auto getDataRequest() -> double {
+    auto getCandleRequest() -> PriceCandle {
         auto res = httplib::Result{apiClient_.Get(apiRequestEndPoint_)};
         if (res->status != 200) {
             std::cout << "status not 200\n";
         }
 
+        std::cout << res->body << '\n';
+
         nlohmann::json data = nlohmann::json::parse(res->body);
 
-        auto iterToPrice = data.find("price");
-        if (iterToPrice != data.end()) {
-            double price = std::stod(static_cast<std::string>(iterToPrice.value()));
-            return price;
-        } else {
-            std::cout << "no price found\n";
-            return -1;
-        }
+        auto open = std::stod(data["open"].get<std::string>());
+        auto high = std::stod(data["high"].get<std::string>());
+        auto low = std::stod(data["low"].get<std::string>());
+        auto close = std::stod(data["close"].get<std::string>());
+        auto time = data["timestamp"].get<int>();
+       
+        return PriceCandle{open, high, low, close, time};
     }
 
     auto readLoop() -> void {
@@ -93,10 +140,10 @@ private:
                 break;
             }
 
-            auto latestPrice = getDataRequest();
+            auto latestCandle = PriceCandle{getCandleRequest()};
             {
                 auto dataLock = std::lock_guard<std::mutex>{dataContainerMutex_};
-                dataContainer_.push_back(latestPrice);
+                dataContainer_.push_back(latestCandle);
             }
         
         }
@@ -105,19 +152,16 @@ private:
 
 int main() {
     
-    auto dataPoints = std::vector<double>{};
-    auto dataLock = std::mutex{};
+    auto goldPrices = PriceData{};
     
-    auto readThread = ReadDataThread{dataPoints, dataLock};
+    auto readThread = ReadDataThread{goldPrices};
     readThread.startThread();
 
     std::this_thread::sleep_for(std::chrono::seconds{20});
 
     readThread.stopThread();
 
-    for (double curr : dataPoints) {
-        std::cout << curr << '\n';
+    for (auto currCandle : goldPrices.data) {
+        std::cout << currCandle << '\n';
     }
-
-
 }
