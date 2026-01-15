@@ -81,10 +81,10 @@ public:
     {
         auto MY_API_KEY = std::string{std::getenv("TWELVEDATA_MY_API_KEY")};
         auto dataTypeRequested = std::string{"/quote"};
-        auto symbol = std::string{"XAU/USD"};
+        auto symbol = std::string{"EUR/USD"};
         auto interval = std::string{"1min"};
 
-        apiRequestEndPoint_ = {dataTypeRequested + "?symbol=" + symbol + "&interval" + interval + "&apikey=" + MY_API_KEY};
+        apiRequestEndPoint_ = {dataTypeRequested + "?symbol=" + symbol + "&interval=" + interval + "&apikey=" + MY_API_KEY};
     }
 
     auto startThread() -> void {
@@ -107,7 +107,7 @@ private:
             std::cout << "status not 200\n";
         }
 
-        std::cout << res->body << '\n';
+        // std::cout << res->body << '\n';
 
         nlohmann::json data = nlohmann::json::parse(res->body);
 
@@ -157,9 +157,11 @@ int main() {
     auto readThread = ReadDataThread{goldPrices};
     readThread.startThread();
 
-    std::this_thread::sleep_for(std::chrono::seconds{20});
-
-    readThread.stopThread();
+    int stop{};
+    std::cin >> stop;
+    if (stop == -1) {
+        readThread.stopThread();
+    }
 
     for (auto currCandle : goldPrices.data) {
         std::cout << currCandle << '\n';
