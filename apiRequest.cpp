@@ -4,6 +4,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <boost/process.hpp>
 #include "nlohmann/json.hpp"
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
@@ -12,7 +13,7 @@
 #include "timer.h"
 
 #define API_REQUESTS_PER_MIN 7
-#define API_REQUEST_INTERVAL_SEC 60 / API_REQUESTS_PER_MIN + 1
+#define API_REQUEST_INTERVAL_SEC 60 / 7 + 1
 
 struct PriceCandle {
 public:
@@ -43,7 +44,7 @@ auto operator<<(std::ostream& out, PriceCandle& candle) -> std::ostream& {
 
 class ReadDataThread;
 
-class PriceData {
+class PriceDataContainer {
     friend class ReadDataThread;
 public:
     std::string symbolName;
@@ -51,12 +52,20 @@ public:
 
 private:
     std::mutex dataLock;
+    std::condition_variable dataCv;
 
+public:
     auto getMutex() -> std::mutex& {
         return dataLock;
     }
 
-    
+    auto newDataAdded() -> void {
+        dataCv.notify_one();
+    }
+
+    auto getCondVar() -> std::condition_variable& {
+        return dataCv;
+    }
 };
 
 class ReadDataThread {
@@ -66,22 +75,20 @@ private:
     bool stopReading_;
     std::thread thread_;
 
-    std::vector<PriceCandle>& dataContainer_;
-    std::mutex& dataContainerMutex_;
+    PriceDataContainer& container_;
 
     httplib::Client apiClient_;
     std::string apiRequestEndPoint_;
 
 public:
-    ReadDataThread(PriceData& container)
+    ReadDataThread(PriceDataContainer& container)
         : stopReading_ {false}
-        , dataContainer_ {container.data}
-        , dataContainerMutex_ {container.getMutex()}
+        , container_ {container}
         , apiClient_{"https://api.twelvedata.com"}
     {
         auto MY_API_KEY = std::string{std::getenv("TWELVEDATA_MY_API_KEY")};
         auto dataTypeRequested = std::string{"/quote"};
-        auto symbol = std::string{"EUR/USD"};
+        auto symbol = std::string{"XAU/USD"};
         auto interval = std::string{"1min"};
 
         apiRequestEndPoint_ = {dataTypeRequested + "?symbol=" + symbol + "&interval=" + interval + "&apikey=" + MY_API_KEY};
@@ -107,8 +114,6 @@ private:
             std::cout << "status not 200\n";
         }
 
-        // std::cout << res->body << '\n';
-
         nlohmann::json data = nlohmann::json::parse(res->body);
 
         auto open = std::stod(data["open"].get<std::string>());
@@ -118,6 +123,16 @@ private:
         auto time = data["timestamp"].get<int>();
        
         return PriceCandle{open, high, low, close, time};
+    }
+
+    auto shouldAddCandle(PriceDataContainer& container, PriceCandle& candle) -> bool {
+        auto& data = container.data;
+        if (data.empty() || (!data.empty() &&
+            data.back().timeStamp != candle.timeStamp)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     auto readLoop() -> void {
@@ -142,20 +157,65 @@ private:
 
             auto latestCandle = PriceCandle{getCandleRequest()};
             {
-                auto dataLock = std::lock_guard<std::mutex>{dataContainerMutex_};
-                dataContainer_.push_back(latestCandle);
+                auto dataLock = std::lock_guard<std::mutex>{container_.getMutex()};
+                
+                // if (shouldAddCandle(container_, latestCandle)) {
+                //     std::cout << "hi get" << latestCandle << '\n';
+                //     container_.data.push_back(latestCandle);
+                //     container_.getCondVar().notify_one();
+                // }
+                std::cout << "hi get" << latestCandle << '\n';
+                container_.data.push_back(latestCandle);
+                container_.getCondVar().notify_one();
             }
         
         }
     }
 };
 
+
+
+auto sendDataPython(
+    PriceDataContainer& container,
+    std::string pythonFile
+) -> void {
+    auto pipe = boost::process::opstream{};
+
+    auto pythonProcess = boost::process::child{
+        boost::process::search_path("py"),
+        "-3.11",
+        "-u",
+        pythonFile,
+        boost::process::std_in < pipe,
+        boost::process::std_out > stdout, 
+        boost::process::std_err > stderr
+    };
+
+    auto& cvContainer = container.getCondVar();
+    auto lockContainer = std::unique_lock<std::mutex>{container.getMutex()};
+    
+    while (true) {
+        cvContainer.wait(lockContainer);
+
+        std::cout << "HI send" << container.data.back() << '\n';
+        pipe << container.data.back() << std::endl;
+    }
+    pipe.close();
+    pythonProcess.wait();
+}
+
 int main() {
     
-    auto goldPrices = PriceData{};
+    auto goldPrices = PriceDataContainer{};
     
     auto readThread = ReadDataThread{goldPrices};
     readThread.startThread();
+
+    auto sendPythonThread = std::thread{
+        sendDataPython, 
+        std::ref(goldPrices),
+        "tradeDecision.py"
+    };
 
     int stop{};
     std::cin >> stop;

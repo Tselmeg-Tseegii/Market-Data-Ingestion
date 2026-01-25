@@ -5,13 +5,13 @@ CXX = g++
 CXXFLAGS = -Wall
 
 # Linker flags (Libraries to link against)
-LDFLAGS = -lssl -lcrypto -lcrypt32 -lws2_32
+LDFLAGS = -lboost_filesystem-mt -lssl -lcrypto -lcrypt32 -lws2_32
 
 # The build target executable
 TARGET = apiRequest.exe
 
 # Source files
-OBJECTS = apiRequest.o timer.o nlohmann/json.hpp
+OBJECTS = apiRequest.o timer.o
 
 # Default rule: runs when you type 'make'
 all: $(TARGET)
