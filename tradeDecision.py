@@ -80,12 +80,14 @@ def createFeature(currCandle: Candle, preCandles: deque):
 model = compose.Pipeline(
     tree.HoeffdingTreeClassifier(
         grace_period = 50,       
-        split_confidence = 0.01  
+        delta = 0.01  
     )
 )
 
 preCandles = deque(maxlen = 10)
 preFeature = None
+
+print("starting model")
 
 while True:
 

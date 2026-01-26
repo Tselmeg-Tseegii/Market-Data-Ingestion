@@ -13,7 +13,7 @@
 #include "timer.h"
 
 #define API_REQUESTS_PER_MIN 7
-#define API_REQUEST_INTERVAL_SEC 60 / 7 + 1
+#define API_REQUEST_INTERVAL_SEC 60
 
 struct PriceCandle {
 public:
@@ -67,6 +67,10 @@ public:
         return dataCv;
     }
 };
+
+// auto storeCandleInFile(PriceCandle& candle)-> void {
+    
+// }
 
 class ReadDataThread {
 private:
@@ -156,18 +160,22 @@ private:
             }
 
             auto latestCandle = PriceCandle{getCandleRequest()};
+            bool useCandle = false;
             {
                 auto dataLock = std::lock_guard<std::mutex>{container_.getMutex()};
                 
-                // if (shouldAddCandle(container_, latestCandle)) {
-                //     std::cout << "hi get" << latestCandle << '\n';
-                //     container_.data.push_back(latestCandle);
-                //     container_.getCondVar().notify_one();
-                // }
-                std::cout << "hi get" << latestCandle << '\n';
-                container_.data.push_back(latestCandle);
-                container_.getCondVar().notify_one();
+                if (shouldAddCandle(container_, latestCandle)) {
+                    useCandle = true;
+                }
+                if (useCandle == true) {
+                    // std::cout << "hi get" << latestCandle << '\n';
+                    container_.data.push_back(latestCandle);
+                    container_.getCondVar().notify_one();
+                }
             }
+            // if (useCandle == true) {
+            //     storeCandleInFile(latestCandle);
+            // }
         
         }
     }
