@@ -5,6 +5,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <boost/process.hpp>
+#include <fstream>
+
 #include "nlohmann/json.hpp"
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
@@ -14,6 +16,8 @@
 
 #define API_REQUESTS_PER_MIN 7
 #define API_REQUEST_INTERVAL_SEC 60
+#define FILE_CANDLE_DATA "data/candleData.txt"
+#define FILE_PREDICTION_DATA "data/predictionData.txt"
 
 struct PriceCandle {
 public:
@@ -49,6 +53,7 @@ class PriceDataContainer {
 public:
     std::string symbolName;
     std::vector<PriceCandle> data;
+    bool noMoreData {false};
 
 private:
     std::mutex dataLock;
@@ -68,9 +73,10 @@ public:
     }
 };
 
-// auto storeCandleInFile(PriceCandle& candle)-> void {
-    
-// }
+auto storeCandleInFile(PriceCandle& candle) -> void {
+    auto file = std::ofstream{FILE_CANDLE_DATA, std::ios::app};
+    file << candle << '\n';
+}
 
 class ReadDataThread {
 private:
@@ -147,6 +153,23 @@ private:
         auto stopSignalLock = std::unique_lock<std::mutex>{stopSignalLock_};
         
         while(true) {
+            auto latestCandle = PriceCandle{getCandleRequest()};
+            bool useCandle = false;
+            {
+                auto dataLock = std::lock_guard<std::mutex>{container_.getMutex()};
+                
+                if (shouldAddCandle(container_, latestCandle)) {
+                    useCandle = true;
+                }
+                if (useCandle == true) {;
+                    container_.data.push_back(latestCandle);
+                    container_.getCondVar().notify_one();
+                }
+            }
+            if (useCandle == true) {
+                storeCandleInFile(latestCandle);
+            }
+        
             cvSignalManager_.wait_for(
                 stopSignalLock, 
                 apiRequestInterval, 
@@ -156,48 +179,31 @@ private:
             );
 
             if (stopReading_) {
+                container_.noMoreData = true;
                 break;
             }
-
-            auto latestCandle = PriceCandle{getCandleRequest()};
-            bool useCandle = false;
-            {
-                auto dataLock = std::lock_guard<std::mutex>{container_.getMutex()};
-                
-                if (shouldAddCandle(container_, latestCandle)) {
-                    useCandle = true;
-                }
-                if (useCandle == true) {
-                    // std::cout << "hi get" << latestCandle << '\n';
-                    container_.data.push_back(latestCandle);
-                    container_.getCondVar().notify_one();
-                }
-            }
-            // if (useCandle == true) {
-            //     storeCandleInFile(latestCandle);
-            // }
-        
         }
     }
 };
 
-
-
-auto sendDataPython(
+auto managePythonProcess(
     PriceDataContainer& container,
     std::string pythonFile
 ) -> void {
-    auto pipe = boost::process::opstream{};
+    auto pipeToPython = boost::process::opstream{};
+    auto pipeFromPython = boost::process::ipstream{};
 
     auto pythonProcess = boost::process::child{
         boost::process::search_path("py"),
         "-3.11",
         "-u",
         pythonFile,
-        boost::process::std_in < pipe,
-        boost::process::std_out > stdout, 
+        boost::process::std_in < pipeToPython,
+        boost::process::std_out > pipeFromPython, 
         boost::process::std_err > stderr
     };
+
+    auto prefictionSaveFile = std::fstream{FILE_PREDICTION_DATA, std::ios::app};
 
     auto& cvContainer = container.getCondVar();
     auto lockContainer = std::unique_lock<std::mutex>{container.getMutex()};
@@ -205,10 +211,25 @@ auto sendDataPython(
     while (true) {
         cvContainer.wait(lockContainer);
 
-        std::cout << "HI send" << container.data.back() << '\n';
-        pipe << container.data.back() << std::endl;
+        if (container.noMoreData == true) {
+            break;
+        }
+
+        std::cout << "HI send " << container.data.back() << '\n';
+        pipeToPython << container.data.back() << std::endl;
+
+        lockContainer.unlock();
+
+        auto pythonMessage = std::string{};
+        std::getline(pipeFromPython, pythonMessage);
+
+        std::cout << "got python " << pythonMessage << '\n';
+        prefictionSaveFile << pythonMessage << '\n';
+
+        lockContainer.lock();
     }
-    pipe.close();
+    pipeToPython.close();
+    pipeFromPython.close();
     pythonProcess.wait();
 }
 
@@ -220,7 +241,7 @@ int main() {
     readThread.startThread();
 
     auto sendPythonThread = std::thread{
-        sendDataPython, 
+        managePythonProcess, 
         std::ref(goldPrices),
         "tradeDecision.py"
     };

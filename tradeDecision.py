@@ -1,9 +1,14 @@
 import sys
 import math
+import pickle
+import os
 from river import compose, tree, stats, metrics
 from collections import deque
 
+CANDLE_TIME_INTERVAL = 60
 COMBINED_CANDLE_LENGTH = 5
+FILE_CANDLE_DATA = "data/candleData.txt"
+FILE_MODEL_DATA = "data/riverModel.pkl"
 
 class Candle:
     def __init__(self, open_=0.0, high_=0.0, low_=0.0, close_=0.0, timestamp_=0):
@@ -29,6 +34,9 @@ class Candle:
         return self.timestamp_ == 0
 
 def addCandle(a: Candle, b: Candle) -> Candle:
+    if a.timestamp_ + CANDLE_TIME_INTERVAL != b.timestamp_:
+        return None
+    
     newCandle = Candle()
     newCandle.timestamp_ = b.timestamp_
     newCandle.high_ = max(a.high_, b.high_)
@@ -72,29 +80,16 @@ def createFeature(currCandle: Candle, preCandles: deque):
 
     #the time of day
     minutes = (currCandle.timestamp_ // 60)
-    features["5minuteStamp"] = minutes % ((24 * 60) // COMBINED_CANDLE_LENGTH)
+    fiveMinStamp = minutes % ((24 * 60) // COMBINED_CANDLE_LENGTH)
+    features["timeStamp"] = fiveMinStamp
 
     return features
 
-
-model = compose.Pipeline(
-    tree.HoeffdingTreeClassifier(
-        grace_period = 50,       
-        delta = 0.01  
-    )
-)
-
-preCandles = deque(maxlen = 10)
-preFeature = None
-
-print("starting model")
-
-while True:
-
+def readAggregateCandle(readStream):
     i = 0
     latestCombinedCandle = Candle()
     while i < COMBINED_CANDLE_LENGTH:
-        line = sys.stdin.readline()
+        line = readStream.readline()
         if not line: 
             break 
         currCandle = Candle().fromLine(line)
@@ -103,42 +98,81 @@ while True:
             latestCombinedCandle = currCandle
         else:
             latestCombinedCandle = addCandle(latestCombinedCandle, currCandle)
+            
+            if latestCombinedCandle is None:
+                latestCombinedCandle = currCandle
+                i = 0
+
         i += 1
     
     if i != COMBINED_CANDLE_LENGTH:
-        print("Python exiting due to not enough candles to combine")
-        break
-
-    if len(preCandles) != 10:
-        preCandles.append(latestCombinedCandle)
-        continue
-
-    currFeature = createFeature(latestCombinedCandle, preCandles)
-
-    if preFeature is not None:
-        currRawBody = latestCombinedCandle.close_ - latestCombinedCandle.open_
-
-        preVolatilityArr = [(candle.high_ - candle.low_) for candle in preCandles]
-        preVolatility = sum(preVolatilityArr) / len(preVolatilityArr)
-
-        noiseThreshold = preVolatility * 0.5 
-
-        slippageCost = preVolatility * 0.3
-
-        label = "NEUTRAL"
-        
-        if currRawBody > (noiseThreshold + slippageCost):
-            label = "LONG"
-        elif currRawBody < -(noiseThreshold + slippageCost):
-            label = "SHORT"
-            
-        model.learn_one(preFeature, label)
+        return None
+    else:
+        return latestCombinedCandle
     
-    prediction = model.predict_one(currFeature)
-    probs = model.predict_proba_one(currFeature)
-    confidence = probs.get(prediction, 0.0)
+def trainPredictModelLoop(readStream, needToPredict):
+    preCandles = deque(maxlen = 10)
+    preFeature = None
 
-    print(f"Time: {latestCombinedCandle.timestamp_} | Pred: {prediction} | Conf: {confidence:.2f}")
+    while True:
+        latestCombinedCandle = readAggregateCandle(readStream)
+        if latestCombinedCandle is None:
+            break
 
-    preCandles.append(latestCombinedCandle)
-    preFeature = currFeature
+        if len(preCandles) != 10:
+            preCandles.append(latestCombinedCandle)
+            continue
+
+        currFeature = createFeature(latestCombinedCandle, preCandles)
+
+        if preFeature is not None:
+            currRawBody = latestCombinedCandle.close_ - latestCombinedCandle.open_
+
+            preVolatilityArr = [(candle.high_ - candle.low_) for candle in preCandles]
+            preVolatility = sum(preVolatilityArr) / len(preVolatilityArr)
+
+            noiseThreshold = preVolatility * 0.5 
+
+            slippageCost = preVolatility * 0.3
+
+            label = "NEUTRAL"
+            
+            if currRawBody > (noiseThreshold + slippageCost):
+                label = "LONG"
+            elif currRawBody < -(noiseThreshold + slippageCost):
+                label = "SHORT"
+                
+            model.learn_one(preFeature, label)
+        
+        if needToPredict is True:
+            prediction = model.predict_one(currFeature)
+            probs = model.predict_proba_one(currFeature)
+            confidence = probs.get(prediction, 0.0)
+
+            print(f"prediction: ({latestCombinedCandle.timestamp_}, {prediction}, {confidence:.2f})")
+
+        preCandles.append(latestCombinedCandle)
+        preFeature = currFeature
+
+if os.path.exists(FILE_MODEL_DATA) and os.path.getsize(FILE_MODEL_DATA) > 0:
+    modelSaveFile = open(FILE_MODEL_DATA, "rb")
+    model = pickle.load(modelSaveFile)
+else:
+    model = compose.Pipeline(
+        tree.HoeffdingTreeClassifier(
+            grace_period = 50,       
+            delta = 0.01  
+        )
+    )
+
+    if os.path.exists(FILE_CANDLE_DATA) and os.path.getsize(FILE_CANDLE_DATA) > 0:
+        candleDataFile = open(FILE_CANDLE_DATA, "r")
+        trainPredictModelLoop(candleDataFile, False)
+
+print("starting live model")
+
+trainPredictModelLoop(sys.stdin, True)
+
+modelSaveFile = open(FILE_MODEL_DATA, "wb")
+pickle.dump(model, modelSaveFile)
+modelSaveFile.close()
