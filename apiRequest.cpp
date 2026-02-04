@@ -27,7 +27,13 @@ public:
     double candleClose;
     int timeStamp;
 
-    PriceCandle(double open, double high, double low, double close, int time) 
+    PriceCandle(
+        double open = -1, 
+        double high = -1, 
+        double low = -1, 
+        double close = -1, 
+        int time = -1
+    ) 
         : candleOpen {open}
         , candleHigh {high}
         , candleLow {low}
@@ -35,10 +41,10 @@ public:
         , timeStamp {time}
     {}
 
-    friend auto operator<<(std::ostream& out, PriceCandle& candle) -> std::ostream&;
+    friend auto operator<<(std::ostream& out, const PriceCandle& candle) -> std::ostream&;
 };
 
-auto operator<<(std::ostream& out, PriceCandle& candle) -> std::ostream& {
+auto operator<<(std::ostream& out, const PriceCandle& candle) -> std::ostream& {
     out << '(' << candle.candleOpen << ", " << candle.candleLow;
     out << ", " << candle.candleHigh << ", " << candle.candleClose;
     out << ", " << candle.timeStamp << ')';
@@ -46,44 +52,61 @@ auto operator<<(std::ostream& out, PriceCandle& candle) -> std::ostream& {
     return out;
 }
 
-class ReadDataThread;
-
-class PriceDataContainer {
-    friend class ReadDataThread;
-public:
-    std::string symbolName;
-    std::vector<PriceCandle> data;
-    bool noMoreData {false};
-
-private:
-    std::mutex dataLock;
-    std::condition_variable dataCv;
-
-public:
-    auto getMutex() -> std::mutex& {
-        return dataLock;
-    }
-
-    auto newDataAdded() -> void {
-        dataCv.notify_one();
-    }
-
-    auto getCondVar() -> std::condition_variable& {
-        return dataCv;
-    }
-};
-
 auto storeCandleInFile(PriceCandle& candle) -> void {
     auto file = std::ofstream{FILE_CANDLE_DATA, std::ios::app};
     file << candle << '\n';
 }
 
+class PriceDataContainer {
+private:
+    std::string symbolName;
+    std::vector<PriceCandle> data;
+
+    std::mutex dataMutex;
+
+    std::condition_variable newDataAddedCv;
+    bool willGetMoreData {true};
+
+public:
+
+    auto push(PriceCandle& candle) -> void {
+        {
+            auto dataLock = std::lock_guard<std::mutex>{dataMutex};
+            data.push_back(candle);
+        }
+        newDataAddedCv.notify_all();
+
+        storeCandleInFile(candle);
+    }
+
+    auto getCondVar() -> std::condition_variable& {
+        return newDataAddedCv;
+    }
+
+    auto getMutex() -> std::mutex& {
+        return dataMutex;
+    }
+
+    auto setWillNotGetMoreData() -> void {
+        willGetMoreData = false;
+        newDataAddedCv.notify_all();
+    }
+
+    auto willGetNewData() -> bool {
+        return willGetMoreData;
+    }
+
+    auto getData() -> std::vector<PriceCandle>& {
+        return data;
+    }
+};
+
 class ReadDataThread {
 private:
-    std::mutex stopSignalLock_;
+    std::mutex stopSignalMutex_;
     std::condition_variable cvSignalManager_;
     bool stopReading_;
-    std::thread thread_;
+    std::jthread thread_;
 
     PriceDataContainer& container_;
 
@@ -102,18 +125,16 @@ public:
         auto interval = std::string{"1min"};
 
         apiRequestEndPoint_ = {dataTypeRequested + "?symbol=" + symbol + "&interval=" + interval + "&apikey=" + MY_API_KEY};
-    }
-
-    auto startThread() -> void {
-        thread_ = std::thread{&ReadDataThread::readLoop, this};
+    
+        thread_ = std::jthread{&ReadDataThread::readLoop, this};
     }
 
     auto stopThread() -> void {
         {
-            auto stopFlagLock = std::lock_guard<std::mutex>{stopSignalLock_};
+            auto stopFlagLock = std::lock_guard<std::mutex>{stopSignalMutex_};
             stopReading_ = true;
         }
-        cvSignalManager_.notify_one();
+        cvSignalManager_.notify_all();
         thread_.join();
     }
 
@@ -135,114 +156,119 @@ private:
         return PriceCandle{open, high, low, close, time};
     }
 
-    auto shouldAddCandle(PriceDataContainer& container, PriceCandle& candle) -> bool {
-        auto& data = container.data;
-        if (data.empty() || (!data.empty() &&
-            data.back().timeStamp != candle.timeStamp)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     auto readLoop() -> void {
         auto apiRequestInterval = std::chrono::duration<double>{
             std::chrono::seconds{API_REQUEST_INTERVAL_SEC}
         };
 
-        auto stopSignalLock = std::unique_lock<std::mutex>{stopSignalLock_};
-        
+        auto currTime = Timer{}.now();
+        auto nextTime = currTime + apiRequestInterval;
+
+        auto stopSignalLock = std::unique_lock<std::mutex>{stopSignalMutex_};
         while(true) {
-            auto latestCandle = PriceCandle{getCandleRequest()};
-            bool useCandle = false;
-            {
-                auto dataLock = std::lock_guard<std::mutex>{container_.getMutex()};
-                
-                if (shouldAddCandle(container_, latestCandle)) {
-                    useCandle = true;
-                }
-                if (useCandle == true) {;
-                    container_.data.push_back(latestCandle);
-                    container_.getCondVar().notify_one();
-                }
-            }
-            if (useCandle == true) {
-                storeCandleInFile(latestCandle);
-            }
-        
-            cvSignalManager_.wait_for(
+            cvSignalManager_.wait_until(
                 stopSignalLock, 
-                apiRequestInterval, 
+                nextTime, 
                 [this] () {
                     return stopReading_;
                 }
             );
 
             if (stopReading_) {
-                container_.noMoreData = true;
+                container_.setWillNotGetMoreData();
                 break;
             }
+
+            auto latestCandle = PriceCandle{getCandleRequest()};
+
+            container_.push(latestCandle);
+
+            nextTime = nextTime + apiRequestInterval;
         }
     }
 };
 
-auto managePythonProcess(
-    PriceDataContainer& container,
-    std::string pythonFile
-) -> void {
-    auto pipeToPython = boost::process::opstream{};
-    auto pipeFromPython = boost::process::ipstream{};
+class ManagePythonProcess {
+private:
+    PriceDataContainer& container_;
 
-    auto pythonProcess = boost::process::child{
-        boost::process::search_path("py"),
-        "-3.11",
-        "-u",
-        pythonFile,
-        boost::process::std_in < pipeToPython,
-        boost::process::std_out > pipeFromPython, 
-        boost::process::std_err > stderr
-    };
+    boost::process::opstream pipeToPython_;
+    boost::process::ipstream pipeFromPython_;
 
-    auto prefictionSaveFile = std::fstream{FILE_PREDICTION_DATA, std::ios::app};
+    std::jthread sendDataThread_;
+    std::jthread getDataThread_;
 
-    auto& cvContainer = container.getCondVar();
-    auto lockContainer = std::unique_lock<std::mutex>{container.getMutex()};
-    
-    while (true) {
-        cvContainer.wait(lockContainer);
+    boost::process::child pythonProcess_;
 
-        if (container.noMoreData == true) {
-            break;
-        }
+public:
+    ManagePythonProcess(
+        PriceDataContainer& container,
+        std::string pythonFile
+    )
+        : container_ {container}
+        , pipeToPython_ {}
+        , pipeFromPython_ {}
 
-        std::cout << "HI send " << container.data.back() << '\n';
-        pipeToPython << container.data.back() << std::endl;
+    {
+        pythonProcess_ = boost::process::child{
+            boost::process::search_path("py"),
+            "-3.11",
+            "-u",
+            pythonFile,
+            boost::process::std_in < pipeToPython_,
+            boost::process::std_out > pipeFromPython_, 
+            boost::process::std_err > stderr
+        };
 
-        lockContainer.unlock();
-
-        auto pythonMessage = std::string{};
-        std::getline(pipeFromPython, pythonMessage);
-
-        std::cout << "got python " << pythonMessage << '\n';
-        prefictionSaveFile << pythonMessage << '\n';
-
-        lockContainer.lock();
+        sendDataThread_ = std::jthread{&ManagePythonProcess::sendDataToPython, this};
+        getDataThread_ = std::jthread{&ManagePythonProcess::getDataFromPython, this};
     }
-    pipeToPython.close();
-    pipeFromPython.close();
-    pythonProcess.wait();
-}
+
+private:
+    auto sendDataToPython() -> void {
+        auto& cvContainer = container_.getCondVar();
+        auto lockContainer = std::unique_lock<std::mutex>{container_.getMutex()};
+        
+        auto lastSentDataIndex = std::size_t{0};
+        while (true) {
+            cvContainer.wait(lockContainer, [this, &lastSentDataIndex]() {
+                return (container_.getData().size() > lastSentDataIndex)
+                        || !container_.willGetNewData();
+            });
+
+            auto& data = container_.getData();
+
+            while (data.size() > lastSentDataIndex) {
+                std::cout << "send " << data[lastSentDataIndex] << '\n';
+                pipeToPython_ << data[lastSentDataIndex] << std::endl;
+                lastSentDataIndex++;
+            }
+
+            if (!container_.willGetNewData()) {
+                break;
+            }
+        }
+    }
+
+    auto getDataFromPython() -> void {
+        auto prefictionSaveFile = std::fstream{FILE_PREDICTION_DATA, std::ios::app};
+
+        auto pythonResponse = std::string{};
+        while (std::getline(pipeFromPython_, pythonResponse)) {
+            std::cout << "got " << pythonResponse << '\n';
+            prefictionSaveFile << pythonResponse << std::endl;
+        }
+    }
+};
 
 int main() {
     
     auto goldPrices = PriceDataContainer{};
     
     auto readThread = ReadDataThread{goldPrices};
-    readThread.startThread();
 
-    auto sendPythonThread = std::thread{
-        managePythonProcess, 
-        std::ref(goldPrices),
+    auto manageDecisionPython = ManagePythonProcess{
+        goldPrices, 
         "tradeDecision.py"
     };
 
@@ -250,9 +276,5 @@ int main() {
     std::cin >> stop;
     if (stop == -1) {
         readThread.stopThread();
-    }
-
-    for (auto currCandle : goldPrices.data) {
-        std::cout << currCandle << '\n';
     }
 }
