@@ -1,1 +1,21 @@
+starting live model
 starting live model
+starting live model
+starting live model
+prediction: (1770253740, NEUTRAL, 0.90)
+prediction: (1770254040, SHORT, 0.36)
+prediction: (1770254340, SHORT, 0.38)
+prediction: (1770254640, SHORT, 0.37)
+prediction: (1770254940, NEUTRAL, 0.36)
+prediction: (1770255240, NEUTRAL, 0.34)
+prediction: (1770255540, LONG, 0.33)
+prediction: (1770255840, LONG, 0.82)
+prediction: (1770256140, NEUTRAL, 0.38)
+prediction: (1770256440, NEUTRAL, 0.39)
+prediction: (1770256740, NEUTRAL, 0.38)
+prediction: (1770257040, NEUTRAL, 0.37)
+prediction: (1770257340, NEUTRAL, 0.36)
+prediction: (1770257640, SHORT, 0.38)
+prediction: (1770257940, SHORT, 0.39)
+prediction: (1770258240, SHORT, 0.38)
+prediction: (1770258540, SHORT, 0.38)
