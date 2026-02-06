@@ -90,7 +90,7 @@ def readAggregateCandle(readStream):
     latestCombinedCandle = Candle()
     while i < COMBINED_CANDLE_LENGTH:
         line = readStream.readline()
-        if not line: 
+        if not line or line == "STOP\n": 
             break 
         currCandle = Candle().fromLine(line)
         

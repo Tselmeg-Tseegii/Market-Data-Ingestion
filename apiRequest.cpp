@@ -6,6 +6,9 @@
 #include <condition_variable>
 #include <boost/process.hpp>
 #include <fstream>
+#include <boost/beast.hpp>
+#include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 
 #include "nlohmann/json.hpp"
 
@@ -18,6 +21,86 @@
 #define API_REQUEST_INTERVAL_SEC 60
 #define FILE_CANDLE_DATA "data/candleData.txt"
 #define FILE_PREDICTION_DATA "data/predictionData.txt"
+
+// class ReadDataWebSocket {
+// private:
+//     std::mutex stopSignalMutex_;
+//     std::condition_variable cvSignalManager_;
+//     bool stopReading_;
+//     std::jthread thread_;
+
+// public:
+//     ReadDataWebSocket()
+        
+//     {
+    
+//     }
+
+//     auto stopThread() -> void {
+//         {
+//             auto stopFlagLock = std::lock_guard<std::mutex>{stopSignalMutex_};
+//             stopReading_ = true;
+//         }
+//         cvSignalManager_.notify_all();
+//         thread_.join();
+//     }
+// private:
+
+//     auto streamFromWebsocket() -> void {
+//         auto host = std::string{"ws.twelvedata.com"};
+//         auto MY_API_KEY = std::string{std::getenv("TWELVEDATA_MY_API_KEY")};
+//         auto path = std::string{"/v1/quotes/price?apikey="} + MY_API_KEY;
+//         auto port = std::string{"9443"};
+//         auto subscription = std::string{R"(
+//             {
+//                 "action": "subscribe",
+//                 "params": {
+//                     "symbols": "AAPL,TRP,QQQ,EUR/USD,BTC/USD"
+//                 }
+//             }
+//         )"};
+
+
+//         auto ioContext = boost::asio::io_context{};
+//         auto sslContext = boost::asio::ssl::context{
+//             boost::asio::ssl::context::tlsv12_client
+//         };
+
+//         auto resolver = boost::asio::ip::tcp::resolver{ioContext};
+
+//         auto webSocket = boost::beast::websocket::stream<
+//             boost::asio::ssl::stream<
+//                 boost::asio::ip::tcp::socket
+//             >
+//         >{ioContext, sslContext};
+
+//         auto const result = resolver.resolve(host, port);
+
+//         boost::asio::connect(
+//             boost::beast::get_lowest_layer(webSocket), 
+//             result
+//         );
+
+//         if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
+//             std::cout << "error in the hostname stuff?\n";
+//         }
+
+//         webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
+//         webSocket.handshake(host, path);
+
+//         webSocket.write(boost::asio::buffer(subscription));
+
+//         auto streamBuffer = boost::beast::flat_buffer{};
+
+//         while(webSocket.read(streamBuffer)) {
+//             std::cout << boost::beast::make_printable(streamBuffer.data()) << std::endl;
+//             streamBuffer.consume(streamBuffer.size());
+//         }
+
+//         webSocket.close(boost::beast::websocket::close_code::normal);
+//     }
+
+// };
 
 struct PriceCandle {
 public:
@@ -57,7 +140,7 @@ auto storeCandleInFile(PriceCandle& candle) -> void {
     file << candle << '\n';
 }
 
-class PriceDataContainer {
+class PriceCandleContainer {
 private:
     std::string symbolName;
     std::vector<PriceCandle> data;
@@ -108,14 +191,14 @@ private:
     bool stopReading_;
     std::jthread thread_;
 
-    PriceDataContainer& container_;
+    PriceCandleContainer& container_;
 
     httplib::Client apiClient_;
     std::string apiRequestEndPoint_;
     std::string apiPastRequestEndPoint_;
 
 public:
-    ReadDataThread(PriceDataContainer& container)
+    ReadDataThread(PriceCandleContainer& container)
         : stopReading_ {false}
         , container_ {container}
         , apiClient_{"https://api.twelvedata.com"}
@@ -223,7 +306,7 @@ private:
 
 class ManagePythonProcess {
 private:
-    PriceDataContainer& container_;
+    PriceCandleContainer& container_;
 
     boost::process::opstream pipeToPython_;
     boost::process::ipstream pipeFromPython_;
@@ -235,7 +318,7 @@ private:
 
 public:
     ManagePythonProcess(
-        PriceDataContainer& container,
+        PriceCandleContainer& container,
         std::string pythonFile
     )
         : container_ {container}
@@ -255,6 +338,12 @@ public:
 
         sendDataThread_ = std::jthread{&ManagePythonProcess::sendDataToPython, this};
         getDataThread_ = std::jthread{&ManagePythonProcess::getDataFromPython, this};
+    }
+
+    auto endProcess() -> void {
+        sendDataThread_.join();
+        getDataThread_.join();
+        pythonProcess_.wait();
     }
 
 private:
@@ -281,6 +370,8 @@ private:
                 break;
             }
         }
+        pipeToPython_ << "STOP" << std::endl;
+        pipeToPython_.close();
     }
 
     auto getDataFromPython() -> void {
@@ -291,12 +382,13 @@ private:
             std::cout << "got " << pythonResponse << '\n';
             prefictionSaveFile << pythonResponse << std::endl;
         }
+        pipeFromPython_.close();
     }
 };
 
 int main() {
     
-    auto goldPrices = PriceDataContainer{};
+    auto goldPrices = PriceCandleContainer{};
     
     auto readThread = ReadDataThread{goldPrices};
 
@@ -309,5 +401,7 @@ int main() {
     std::cin >> stop;
     if (stop == -1) {
         readThread.stopThread();
+        manageDecisionPython.endProcess();
     }
+
 }
