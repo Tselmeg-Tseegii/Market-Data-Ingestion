@@ -5,8 +5,7 @@ CXX = g++
 CXXFLAGS = -Wall -std=c++20
 
 # Linker flags (Libraries to link against)
-LDFLAGS = -lboost_filesystem-mt -lssl -lcrypto -lcrypt32 -lws2_32
-
+LDFLAGS = -lboost_filesystem-mt -lboost_thread-mt -lboost_atomic-mt -lboost_date_time-mt -lssl -lcrypto -lcrypt32 -lws2_32 -lmswsock
 # The build target executable
 TARGET = apiRequest.exe
 

@@ -4,11 +4,16 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#include <boost/process.hpp>
 #include <fstream>
-#include <boost/beast.hpp>
+#include <map>
+
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
+
+#include <boost/process.hpp>
+
+#include <boost/beast.hpp>
+#include <boost/beast/ssl.hpp>
 
 #include "nlohmann/json.hpp"
 
@@ -22,85 +27,116 @@
 #define FILE_CANDLE_DATA "data/candleData.txt"
 #define FILE_PREDICTION_DATA "data/predictionData.txt"
 
-// class ReadDataWebSocket {
-// private:
-//     std::mutex stopSignalMutex_;
-//     std::condition_variable cvSignalManager_;
-//     bool stopReading_;
-//     std::jthread thread_;
+//create an order book
+//https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=5000
 
-// public:
-//     ReadDataWebSocket()
+class TradeVolumeContainer {
+private:
+    std::map<double, double> tradeVolume_;
+
+public:
+    auto print() -> void {
+        for (auto& [price, vol] : tradeVolume_) {
+            std::cout << '(' << price << ", " << vol << ")\n";
+        }
+    }
+
+    auto push(double price, double volume) {
+        auto foundIt = tradeVolume_.find(price);
+        if (foundIt == tradeVolume_.end()) {
+            tradeVolume_.emplace(price, volume);
+        } else {
+            foundIt->second += volume;
+        }
+    }
+
+    auto getRange(double low, double high) -> std::vector<std::map<double, double>::iterator> {
+        auto volume = std::vector<std::map<double, double>::iterator>{};
+        auto firstElem = tradeVolume_.lower_bound(low);
+        auto lastElem = tradeVolume_.upper_bound(high);
+        for (auto curr {firstElem}; curr != lastElem; curr++) {
+            volume.emplace_back(curr);
+        }
+        volume.emplace_back(lastElem);
+        return volume;
+    }
+};
+
+class ReadDataWebSocket {
+private:
+    bool stopThread_ {false};
+    TradeVolumeContainer& container_;
+    std::jthread streamThread_;
+
+public:
+    ReadDataWebSocket(TradeVolumeContainer& container)
+        : container_ {container}   
+    {
+        streamThread_ = std::jthread{
+            &ReadDataWebSocket::streamFromWebsocket,
+            this,
+            std::ref(stopThread_),
+            std::ref(container_)
+        };
+    }
+
+    auto stopThread() -> void {
+        stopThread_ = false;
+        streamThread_.join();
+    }
+private:
+
+    auto streamFromWebsocket(bool& stopThread, TradeVolumeContainer& container) -> void {
+        auto host = std::string{"stream.binance.com"};
         
-//     {
-    
-//     }
+        auto path = std::string{"/ws/btcusdt@trade"};
+        auto port = std::string{"9443"};
 
-//     auto stopThread() -> void {
-//         {
-//             auto stopFlagLock = std::lock_guard<std::mutex>{stopSignalMutex_};
-//             stopReading_ = true;
-//         }
-//         cvSignalManager_.notify_all();
-//         thread_.join();
-//     }
-// private:
+        auto ioContext = boost::asio::io_context{};
+        auto sslContext = boost::asio::ssl::context{
+            boost::asio::ssl::context::tlsv12_client
+        };
 
-//     auto streamFromWebsocket() -> void {
-//         auto host = std::string{"ws.twelvedata.com"};
-//         auto MY_API_KEY = std::string{std::getenv("TWELVEDATA_MY_API_KEY")};
-//         auto path = std::string{"/v1/quotes/price?apikey="} + MY_API_KEY;
-//         auto port = std::string{"9443"};
-//         auto subscription = std::string{R"(
-//             {
-//                 "action": "subscribe",
-//                 "params": {
-//                     "symbols": "AAPL,TRP,QQQ,EUR/USD,BTC/USD"
-//                 }
-//             }
-//         )"};
+        auto resolver = boost::asio::ip::tcp::resolver{ioContext};
 
+        auto webSocket = boost::beast::websocket::stream<
+            boost::asio::ssl::stream<
+                boost::asio::ip::tcp::socket
+            >
+        >{ioContext, sslContext};
 
-//         auto ioContext = boost::asio::io_context{};
-//         auto sslContext = boost::asio::ssl::context{
-//             boost::asio::ssl::context::tlsv12_client
-//         };
+        auto const result = resolver.resolve(host, port);
 
-//         auto resolver = boost::asio::ip::tcp::resolver{ioContext};
+        boost::asio::connect(
+            boost::beast::get_lowest_layer(webSocket), 
+            result
+        );
 
-//         auto webSocket = boost::beast::websocket::stream<
-//             boost::asio::ssl::stream<
-//                 boost::asio::ip::tcp::socket
-//             >
-//         >{ioContext, sslContext};
+        if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
+            std::cout << "error in the hostname stuff?\n";
+        }
 
-//         auto const result = resolver.resolve(host, port);
+        webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
+        webSocket.handshake(host, path);
 
-//         boost::asio::connect(
-//             boost::beast::get_lowest_layer(webSocket), 
-//             result
-//         );
+        auto streamBuffer = boost::beast::flat_buffer{};
 
-//         if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
-//             std::cout << "error in the hostname stuff?\n";
-//         }
+        while(stopThread == false && webSocket.read(streamBuffer)) {
+            auto rawData = static_cast<char const*>(streamBuffer.data().data());
+            auto length = streamBuffer.data().size();
 
-//         webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
-//         webSocket.handshake(host, path);
+            auto data = nlohmann::json::parse(rawData, rawData + length);
 
-//         webSocket.write(boost::asio::buffer(subscription));
+            auto price = std::stod(data["p"].get<std::string>());
+            auto volume = std::stod(data["q"].get<std::string>());
+            container.push(price, volume);
 
-//         auto streamBuffer = boost::beast::flat_buffer{};
+            streamBuffer.consume(streamBuffer.size());
+        }
 
-//         while(webSocket.read(streamBuffer)) {
-//             std::cout << boost::beast::make_printable(streamBuffer.data()) << std::endl;
-//             streamBuffer.consume(streamBuffer.size());
-//         }
-
-//         webSocket.close(boost::beast::websocket::close_code::normal);
-//     }
-
-// };
+        webSocket.close(boost::beast::websocket::close_code::normal);
+    }
+};
 
 struct PriceCandle {
 public:
@@ -397,11 +433,15 @@ int main() {
         "tradeDecision.py"
     };
 
+    auto btcVolume = TradeVolumeContainer{};
+    auto webSocketThread = ReadDataWebSocket{btcVolume};
+
     int stop{};
     std::cin >> stop;
     if (stop == -1) {
         readThread.stopThread();
         manageDecisionPython.endProcess();
+        webSocketThread.stopThread();
     }
-
+    btcVolume.print();
 }
