@@ -1,0 +1,3 @@
+/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles/trader.dir
+/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles/edit_cache.dir
+/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles/rebuild_cache.dir

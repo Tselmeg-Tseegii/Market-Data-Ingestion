@@ -15,7 +15,7 @@
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
 
-#include "nlohmann/json.hpp"
+#include "json.hpp"
 
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include "httplib.h"
@@ -66,13 +66,13 @@ class ReadDataWebSocket {
 private:
     bool stopThread_ {false};
     TradeVolumeContainer& container_;
-    std::jthread streamThread_;
+    std::thread streamThread_;
 
 public:
     ReadDataWebSocket(TradeVolumeContainer& container)
         : container_ {container}   
     {
-        streamThread_ = std::jthread{
+        streamThread_ = std::thread{
             &ReadDataWebSocket::streamFromWebsocket,
             this,
             std::ref(stopThread_),
@@ -81,60 +81,80 @@ public:
     }
 
     auto stopThread() -> void {
-        stopThread_ = false;
+        std::cout << "hi" << '\n';
+        stopThread_ = true;
         streamThread_.join();
     }
 private:
 
     auto streamFromWebsocket(bool& stopThread, TradeVolumeContainer& container) -> void {
-        auto host = std::string{"stream.binance.com"};
+        try {
+
         
-        auto path = std::string{"/ws/btcusdt@trade"};
-        auto port = std::string{"9443"};
+            auto host = std::string{"stream.binance.com"};
+            
+            auto path = std::string{"/ws/btcusdt@trade"};
+            auto port = std::string{"9443"};
 
-        auto ioContext = boost::asio::io_context{};
-        auto sslContext = boost::asio::ssl::context{
-            boost::asio::ssl::context::tlsv12_client
-        };
+            auto ioContext = boost::asio::io_context{};
+            auto sslContext = boost::asio::ssl::context{
+                boost::asio::ssl::context::tlsv12_client
+            };
 
-        auto resolver = boost::asio::ip::tcp::resolver{ioContext};
+            auto resolver = boost::asio::ip::tcp::resolver{ioContext};
 
-        auto webSocket = boost::beast::websocket::stream<
-            boost::asio::ssl::stream<
-                boost::asio::ip::tcp::socket
-            >
-        >{ioContext, sslContext};
+            auto webSocket = boost::beast::websocket::stream<
+                boost::asio::ssl::stream<
+                    boost::asio::ip::tcp::socket
+                >
+            >{ioContext, sslContext};
 
-        auto const result = resolver.resolve(host, port);
+            auto const result = resolver.resolve(host, port);
 
-        boost::asio::connect(
-            boost::beast::get_lowest_layer(webSocket), 
-            result
-        );
+            boost::asio::connect(
+                boost::beast::get_lowest_layer(webSocket), 
+                result
+            );
 
-        if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
-            std::cout << "error in the hostname stuff?\n";
+            if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
+                std::cout << "error in the hostname stuff?\n";
+            }
+
+            webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
+            webSocket.handshake(host, path);
+
+            auto streamBuffer = boost::beast::flat_buffer{};
+
+            while(webSocket.read(streamBuffer)) {
+                auto rawData = static_cast<char const*>(streamBuffer.data().data());
+                auto length = streamBuffer.data().size();
+
+                auto data = nlohmann::json::parse(rawData, rawData + length);
+
+                auto price = std::stod(data["p"].get<std::string>());
+                auto volume = std::stod(data["q"].get<std::string>());
+                container.push(price, volume);
+
+                streamBuffer.consume(streamBuffer.size());
+                
+                if (stopThread == true) {
+                    break;
+                }
+            }
+
+            webSocket.close(boost::beast::websocket::close_code::normal);
+
+        } catch (const boost::system::system_error& se) {
+            // "Stream truncated" means the server hung up the TCP connection
+            // without a full SSL shutdown. This is common and usually safe to ignore.
+            if (se.code() == boost::asio::ssl::error::stream_truncated) {
+                std::cout << "Connection closed by server (stream truncated) - this is normal.\n";
+            } else {
+                std::cerr << "Boost System Error: " << se.what() << "\n";
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Standard Exception: " << e.what() << "\n";
         }
-
-        webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
-        webSocket.handshake(host, path);
-
-        auto streamBuffer = boost::beast::flat_buffer{};
-
-        while(stopThread == false && webSocket.read(streamBuffer)) {
-            auto rawData = static_cast<char const*>(streamBuffer.data().data());
-            auto length = streamBuffer.data().size();
-
-            auto data = nlohmann::json::parse(rawData, rawData + length);
-
-            auto price = std::stod(data["p"].get<std::string>());
-            auto volume = std::stod(data["q"].get<std::string>());
-            container.push(price, volume);
-
-            streamBuffer.consume(streamBuffer.size());
-        }
-
-        webSocket.close(boost::beast::websocket::close_code::normal);
     }
 };
 
@@ -225,7 +245,7 @@ private:
     std::mutex stopSignalMutex_;
     std::condition_variable cvSignalManager_;
     bool stopReading_;
-    std::jthread thread_;
+    std::thread thread_;
 
     PriceCandleContainer& container_;
 
@@ -250,7 +270,7 @@ public:
         auto order = std::string{"asc"};
         apiPastRequestEndPoint_ = {request + "?symbol=" + symbol + "&interval=" + interval + "&outputsize=" + outputSize + "&order=" + order + "&apikey=" + MY_API_KEY};
         
-        thread_ = std::jthread{&ReadDataThread::onlineReadLoop, this};
+        thread_ = std::thread{&ReadDataThread::onlineReadLoop, this};
     }
 
     auto stopThread() -> void {
@@ -347,8 +367,8 @@ private:
     boost::process::opstream pipeToPython_;
     boost::process::ipstream pipeFromPython_;
 
-    std::jthread sendDataThread_;
-    std::jthread getDataThread_;
+    std::thread sendDataThread_;
+    std::thread getDataThread_;
 
     boost::process::child pythonProcess_;
 
@@ -363,8 +383,7 @@ public:
 
     {
         pythonProcess_ = boost::process::child{
-            boost::process::search_path("py"),
-            "-3.11",
+            boost::process::search_path("python3.13"),
             "-u",
             pythonFile,
             boost::process::std_in < pipeToPython_,
@@ -372,8 +391,8 @@ public:
             boost::process::std_err > stderr
         };
 
-        sendDataThread_ = std::jthread{&ManagePythonProcess::sendDataToPython, this};
-        getDataThread_ = std::jthread{&ManagePythonProcess::getDataFromPython, this};
+        sendDataThread_ = std::thread{&ManagePythonProcess::sendDataToPython, this};
+        getDataThread_ = std::thread{&ManagePythonProcess::getDataFromPython, this};
     }
 
     auto endProcess() -> void {
@@ -424,14 +443,14 @@ private:
 
 int main() {
     
-    auto goldPrices = PriceCandleContainer{};
+    // auto goldPrices = PriceCandleContainer{};
     
-    auto readThread = ReadDataThread{goldPrices};
+    // auto readThread = ReadDataThread{goldPrices};
 
-    auto manageDecisionPython = ManagePythonProcess{
-        goldPrices, 
-        "tradeDecision.py"
-    };
+    // auto manageDecisionPython = ManagePythonProcess{
+    //     goldPrices, 
+    //     "tradeDecision.py"
+    // };
 
     auto btcVolume = TradeVolumeContainer{};
     auto webSocketThread = ReadDataWebSocket{btcVolume};
@@ -439,8 +458,8 @@ int main() {
     int stop{};
     std::cin >> stop;
     if (stop == -1) {
-        readThread.stopThread();
-        manageDecisionPython.endProcess();
+        // readThread.stopThread();
+        // manageDecisionPython.endProcess();
         webSocketThread.stopThread();
     }
     btcVolume.print();
