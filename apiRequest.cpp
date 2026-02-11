@@ -28,40 +28,101 @@
 #define FILE_CANDLE_DATA "data/candleData.txt"
 #define FILE_PREDICTION_DATA "data/predictionData.txt"
 
-auto connectWebsocket(
-    boost::asio::io_context& ioContext,
-    std::string host, 
-    std::string path, 
-    std::string port
-) -> boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> {
-    auto sslContext = boost::asio::ssl::context{
-        boost::asio::ssl::context::tlsv12_client
-    };
+template<typename Event>
+class WebSocketConnection {
+private:
+    boost::asio::io_context ioContext_;
+    std::list<Event>& eventContainer_;
 
-    auto resolver = boost::asio::ip::tcp::resolver{ioContext};
+    std::string host_;
+    std::string path_;
+    std::string port_;
 
-    auto webSocket = boost::beast::websocket::stream<
-        boost::asio::ssl::stream<
-            boost::asio::ip::tcp::socket
-        >
-    >{ioContext, sslContext};
+    std::thread readThread_;
+    bool stopThread_;
 
-    auto const result = resolver.resolve(host, port);
-
-    boost::asio::connect(
-        boost::beast::get_lowest_layer(webSocket), 
-        result
-    );
-
-    if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
-        std::cout << "error in the hostname stuff?\n";
+public:
+    WebSocketConnection(
+        std::list<Event>& container,
+        std::string host, 
+        std::string path, 
+        std::string port
+    ) 
+        : eventContainer_ {container}
+        , host_ {std::move(host)}
+        , path_ {std::move(path)}
+        , port_ {std::move(port)}
+    {   
+        readThread_ = std::thread{&WebSocketConnection::readFromWebsocket, this};
     }
 
-    webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
-    webSocket.handshake(host, path);
+private:
+    auto connectWebsocket(
+        boost::asio::io_context& ioContext,
+        std::string host, 
+        std::string path, 
+        std::string port
+    ) -> boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> {
+        auto sslContext = boost::asio::ssl::context{
+            boost::asio::ssl::context::tlsv12_client
+        };
 
-    return webSocket;
-}
+        auto resolver = boost::asio::ip::tcp::resolver{ioContext};
+
+        auto webSocket = boost::beast::websocket::stream<
+            boost::asio::ssl::stream<
+                boost::asio::ip::tcp::socket
+            >
+        >{ioContext, sslContext};
+
+        auto const result = resolver.resolve(host, port);
+
+        boost::asio::connect(
+            boost::beast::get_lowest_layer(webSocket), 
+            result
+        );
+
+        if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
+            std::cout << "error in the hostname stuff?\n";
+        }
+
+        webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
+        webSocket.handshake(host, path);
+
+        return webSocket;
+    }
+
+    auto readFromWebsocket() -> void {
+        auto ioContext = boost::asio::io_context{};
+        auto webSocket = connectWebsocket(ioContext, host_, path_, port_);
+
+        auto streamBuffer = boost::beast::flat_buffer{};
+
+        while (webSocket.read(streamBuffer)) {
+            auto rawData = static_cast<char const*>(streamBuffer.data().data());
+            auto length = streamBuffer.data().size();
+
+            auto data = nlohmann::json::parse(rawData, rawData + length);
+
+            auto event = createEventFromJson(data);
+            
+            events_.pushAndNotify(event);
+
+            streamBuffer.consume(streamBuffer.size());
+            if (stopThread_ == true) {
+                break;
+            }
+        }
+        try {
+            webSocket.close(boost::beast::websocket::close_code::normal);
+        } catch (const boost::system::system_error& err) {
+            if (err.code() != boost::asio::ssl::error::stream_truncated) {
+                std::cerr << "unexpected error on closing the websocket" << std::endl;
+            }
+        }
+    }
+
+};
 
 struct IntPriceVolume {
     int price;
