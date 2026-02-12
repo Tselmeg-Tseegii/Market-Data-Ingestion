@@ -28,435 +28,110 @@
 #define FILE_CANDLE_DATA "data/candleData.txt"
 #define FILE_PREDICTION_DATA "data/predictionData.txt"
 
-auto connectWebsocket(
-    boost::asio::io_context& ioContext,
-    std::string host, 
-    std::string path, 
-    std::string port
-) -> boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> {
-    auto sslContext = boost::asio::ssl::context{
-        boost::asio::ssl::context::tlsv12_client
-    };
 
-    auto resolver = boost::asio::ip::tcp::resolver{ioContext};
-
-    auto webSocket = boost::beast::websocket::stream<
-        boost::asio::ssl::stream<
-            boost::asio::ip::tcp::socket
-        >
-    >{ioContext, sslContext};
-
-    auto const result = resolver.resolve(host, port);
-
-    boost::asio::connect(
-        boost::beast::get_lowest_layer(webSocket), 
-        result
-    );
-
-    if (!SSL_set_tlsext_host_name(webSocket.next_layer().native_handle(), host.c_str())) {
-        std::cout << "error in the hostname stuff?\n";
-    }
-
-    webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
-    webSocket.handshake(host, path);
-
-    return webSocket;
-}
-
-struct IntPriceVolume {
-    int price;
-    double quantity;
-};
-
-class OrderBook {
-    struct WebSocketEvent {
-        long long int firstUpdateId;
-        long long int lastUpdateId;
-        std::vector<IntPriceVolume> bids;
-        std::vector<IntPriceVolume> asks;
-
-        WebSocketEvent() = default;
-        
-        WebSocketEvent(const WebSocketEvent&) = default;
-
-        WebSocketEvent& operator=(const WebSocketEvent&) = default;
-
-        WebSocketEvent& operator=(WebSocketEvent&&) = default;
-
-        WebSocketEvent(const WebSocketEvent&& event) 
-            : firstUpdateId {event.firstUpdateId}
-            , lastUpdateId {event.lastUpdateId}
-            , bids {std::move(event.bids)}
-            , asks {std::move(event.asks)}
-        {}
-    };
-
-    class EventQueue {
-    private:
-        std::mutex eventQueueMtx_;
-        std::condition_variable eventQueueCv_;
-        std::list<WebSocketEvent> eventQueue_;
-        bool eventQueueIsNonEmpty_ {false};
-    
-    public:
-        auto getCv() -> std::condition_variable& {
-            return eventQueueCv_;
-        }
-
-        auto getMtx() -> std::mutex& {
-            return eventQueueMtx_;
-        }
-
-        auto IsNotEmptyFlag() -> bool {
-            return eventQueueIsNonEmpty_;
-        }
-
-        auto getFront() -> WebSocketEvent& {
-            auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
-            return eventQueue_.front();
-        }
-
-        auto pushAndNotify(WebSocketEvent& event) -> void {
-            {
-                auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
-                eventQueue_.push_back(event);
-                eventQueueIsNonEmpty_ = true;
-            }
-            eventQueueCv_.notify_all();
-        }
-
-        auto removeOldEvents(long long int orderBookLastUpdateId) {
-            auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
-
-            for (auto it {eventQueue_.begin()}; it != eventQueue_.end(); ) {
-                if (it->lastUpdateId <= orderBookLastUpdateId) {
-                    it = eventQueue_.erase(it);
-                } else {
-                    it++;
-                }
-            }
-        }
-
-        auto spliceTo(std::list<WebSocketEvent>& list) -> void {
-            auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
-            list.splice(list.begin(), eventQueue_);
-        }
-
-        auto clear() -> void {
-            auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
-            eventQueue_.clear();
-            eventQueueIsNonEmpty_ = false;
-        }
-
-    };
+template<typename Event>
+class EventQueue {
 private:
-    long long int lastUpdateId_;
-    std::map<int, double> asks_;
-    std::map<int, double> bids_;
-    std::mutex bookMtx_;
-
-    EventQueue events_;
-
-    std::atomic_bool stopReading_;
-
-    std::thread webSocketThread_;
-    std::thread updateOrderBookThread_;
+    std::mutex eventQueueMtx_;
+    std::condition_variable eventQueueCv_;
+    std::list<Event> queue_;
+    bool eventQueueIsNonEmpty_ {false};
 
 public:
-    OrderBook()
-        : stopReading_ {false}
-    {
-        webSocketThread_ = std::thread{&OrderBook::readFromWebsocket, this};
-        updateOrderBookThread_ = std::thread{&OrderBook::continualUpdate, this};
+    auto getCv() -> std::condition_variable& {
+        return eventQueueCv_;
     }
 
-    auto getOrderBook() -> std::pair<std::vector<IntPriceVolume>, std::vector<IntPriceVolume>> {
-        auto lock = std::lock_guard{bookMtx_};
-
-        auto askBook = std::vector<IntPriceVolume>{};
-        askBook.reserve(asks_.size());
-        auto bidBook = std::vector<IntPriceVolume>{};
-        bidBook.reserve(bids_.size());
-        for (auto it {asks_.begin()}; it != asks_.end(); it++) {
-            askBook.push_back({it->first, it->second});
-        }
-
-        for (auto it {bids_.begin()}; it != bids_.end(); it++) {
-            bidBook.push_back({it->first, it->second});
-        }
-        
-        return {askBook, bidBook};
+    auto getMtx() -> std::mutex& {
+        return eventQueueMtx_;
     }
 
-    auto stopOrderBook() -> void {
-        stopReading_ = true;
-        events_.getCv().notify_all();
-
-        webSocketThread_.join();
-        updateOrderBookThread_.join();
+    auto IsNotEmptyFlag() -> bool {
+        return eventQueueIsNonEmpty_;
     }
 
-private:
-    auto clearOrderBook() -> void {
-        lastUpdateId_ = -1;
-        asks_.clear();
-        bids_.clear();
+    auto getFront() -> Event& {
+        auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
+        return queue_.front();
     }
 
-    auto setOrderBrookFromJson(nlohmann::json& data) -> void {
-        lastUpdateId_ = data["lastUpdateId"].get<long long int>();
-
-        for (auto& elem : data["bids"]) {
-            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()));
-            auto volume = std::stod(elem[1].get<std::string>());
-
-            bids_.emplace(priceInt, volume);
-        }
-        for (auto& elem : data["asks"]) {
-            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()));
-            auto volume = std::stod(elem[1].get<std::string>());
-
-            asks_.emplace(priceInt, volume);
-        }
-    }
-
-    auto createEventFromJson(nlohmann::json& data) -> WebSocketEvent {
-        auto event = WebSocketEvent{};
-        event.firstUpdateId = data["U"].get<long long int>();
-        event.lastUpdateId = data["u"].get<long long int>();
-        
-        for (auto& elem : data["b"]) {
-            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()));
-            auto volume = std::stod(elem[1].get<std::string>());
-
-            event.bids.push_back({priceInt, volume});
-        }
-        for (auto& elem : data["a"]) {
-            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()) * 100);
-            auto volume = std::stod(elem[1].get<std::string>());
-
-            event.asks.push_back({priceInt, volume});
-        }
-
-        return event;
-    }
-
-    auto readFromWebsocket() -> void {
-        auto ioContext = boost::asio::io_context{};
-        auto webSocket = connectWebsocket(
-            ioContext, 
-            "stream.binance.com", 
-            "/ws/btcusdt@depth@100ms", 
-            "9443"
-        );
-
-        auto streamBuffer = boost::beast::flat_buffer{};
-
-        while (webSocket.read(streamBuffer)) {
-            auto rawData = static_cast<char const*>(streamBuffer.data().data());
-            auto length = streamBuffer.data().size();
-
-            auto data = nlohmann::json::parse(rawData, rawData + length);
-
-            auto event = createEventFromJson(data);
-            
-            events_.pushAndNotify(event);
-
-            streamBuffer.consume(streamBuffer.size());
-            if (stopReading_ == true) {
-                break;
-            }
-        }
-        try {
-            webSocket.close(boost::beast::websocket::close_code::normal);
-        } catch (const boost::system::system_error& err) {
-            if (err.code() != boost::asio::ssl::error::stream_truncated) {
-                std::cerr << "unexpected error on closing the websocket" << std::endl;
-            }
-        }
-    }
-
-    auto updateOrderBookFromEvent(WebSocketEvent& currEvent) {
-        auto lock = std::lock_guard{bookMtx_};
-        // std::cout << "entered update" << std::endl;
-        // std::cout << currEvent.asks.size() << std::endl;
-        // std::cout << currEvent.bids.size() << std::endl;
-
-
-        for (IntPriceVolume& elem : currEvent.asks) {
-            if (elem.quantity != 0) {
-                // std::cout << "updating asign ask" << std::endl;
-                asks_.insert_or_assign(elem.price, elem.quantity);
-            } else {
-                // std::cout << "delete asign ask" << std::endl;
-                asks_.erase(elem.price);
-            }
-        }
-
-        for (IntPriceVolume& elem : currEvent.bids) {
-            if (elem.quantity != 0) {
-                // std::cout << "updating asign bid" << std::endl;
-
-                bids_.insert_or_assign(elem.price, elem.quantity);
-            } else {
-                // std::cout << "delete asign bid" << std::endl;
-
-                bids_.erase(elem.price);
-            }
-        }
-
-        lastUpdateId_ = currEvent.lastUpdateId;
-    }
-
-    auto continualUpdate() -> void {
-restart_update_orderbook_process:
-        auto eventBufferLock = std::unique_lock<std::mutex>{events_.getMtx()};
-        auto& eventBufferCv = events_.getCv();
-
-        auto veryFirstUpdateId = int{};
-        
-        eventBufferCv.wait(eventBufferLock, [this]() {
-            return events_.IsNotEmptyFlag() || stopReading_;
-        });
-        eventBufferLock.unlock();
-
-        if (stopReading_) {
-            return;
-        }
-
-        veryFirstUpdateId = events_.getFront().firstUpdateId;
-        
-        auto client = httplib::Client{"https://api.binance.com"};
-        auto path = std::string{"/api/v3/depth?symbol=BTCUSDT&limit=5000"};
-
-        long long int snapshotLastUpdateId = -1;
-        auto snapshotJson = nlohmann::json{};
-
-        while (snapshotLastUpdateId == -1 || snapshotLastUpdateId < veryFirstUpdateId) {
-            auto res = httplib::Result{client.Get(path)};
-            if (res->status != 200) {
-                std::cout << "error in result\n";
-            }
-            snapshotJson = nlohmann::json::parse(res->body);
-            snapshotLastUpdateId = snapshotJson["lastUpdateId"].get<long long int>();
-        }
-
-        events_.removeOldEvents(snapshotLastUpdateId);
-
+    auto pushAndNotify(Event& event) -> void {
         {
-            auto lock = std::lock_guard{bookMtx_};
-            setOrderBrookFromJson(snapshotJson);
+            auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
+            queue_.push_back(event);
+            eventQueueIsNonEmpty_ = true;
         }
+        eventQueueCv_.notify_all();
+    }
 
-        
-        while (true) {
-            auto currList = std::list<WebSocketEvent>{};
-            eventBufferLock.lock();
-            eventBufferCv.wait(eventBufferLock, [this]() {
-                return events_.IsNotEmptyFlag() || stopReading_;
-            });
+    auto removeOldEvents(long long int orderBookLastUpdateId) {
+        auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
 
-            if (stopReading_) {
-                return;
-            }
-
-            eventBufferLock.unlock();
-            events_.spliceTo(currList);
-            
-            for (auto& currEvent : currList) {
-
-                if (currEvent.lastUpdateId < lastUpdateId_) {
-                    continue;
-                }
-                
-                if (currEvent.firstUpdateId > (lastUpdateId_ + 1)) {
-                    {
-                        auto lock = std::lock_guard{bookMtx_};
-                        clearOrderBook();
-                    }
-                    events_.clear();
-
-                    goto restart_update_orderbook_process;
-                }
-                updateOrderBookFromEvent(currEvent);
+        for (auto it {queue_.begin()}; it != queue_.end(); ) {
+            if (it->lastUpdateId_ <= orderBookLastUpdateId) {
+                it = queue_.erase(it);
+            } else {
+                it++;
             }
         }
+    }
 
+    auto getData() -> std::list<Event>& {
+        return queue_;
+    }
+
+    auto spliceTo(EventQueue<Event>& queue) -> void {
+        auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
+        queue.getData().splice(queue.getData().begin(), queue_);
+    }
+
+    auto clear() -> void {
+        auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
+        queue_.clear();
+        eventQueueIsNonEmpty_ = false;
     }
 };
 
-class TradeVolumeContainer {
+template<typename Event>
+class WebSocketConnection {
 private:
-    std::mutex mtx_;
-    std::map<int, double> tradeVolume_;
+    boost::asio::io_context ioContext_;
+    EventQueue<Event>& eventQueue_;
+
+    std::string host_;
+    std::string path_;
+    std::string port_;
+
+    std::thread readThread_;
+    bool stopThread_;
 
 public:
-    auto print() -> void {
-        auto lock = std::lock_guard<std::mutex>{mtx_};
-        for (auto& [price, vol] : tradeVolume_) {
-            std::cout << '(' << price << ", " << vol << ")\n";
-        }
-    }
-
-    auto push(double price, double volume) {
-        auto lock = std::lock_guard<std::mutex>{mtx_};
-        auto key = static_cast<int>(price * 100);
-
-        auto foundIt = tradeVolume_.find(key);
-        if (foundIt == tradeVolume_.end()) {
-            tradeVolume_.emplace(key, volume);
-        } else {
-            foundIt->second += volume;
-        }
-    }
-
-    auto getRange(double low, double high) -> std::vector<std::map<int, double>::iterator> {
-        auto lock = std::lock_guard<std::mutex>{mtx_};
-        auto volumeArr = std::vector<std::map<int, double>::iterator>{};
-        auto firstElem = tradeVolume_.lower_bound(static_cast<int>(low));
-        auto lastElem = tradeVolume_.upper_bound(static_cast<int>(high));
-        for (auto curr {firstElem}; curr != lastElem; curr++) {
-            volumeArr.emplace_back(curr);
-        }
-        volumeArr.emplace_back(lastElem);
-        return volumeArr;
-    }
-};
-
-class ReadDataWebSocket {
-private:
-    bool stopThread_ {false};
-    TradeVolumeContainer& container_;
-    std::thread streamThread_;
-
-public:
-    ReadDataWebSocket(TradeVolumeContainer& container)
-        : container_ {container}   
-    {
-        streamThread_ = std::thread{
-            &ReadDataWebSocket::streamFromWebsocket,
-            this,
-            std::ref(stopThread_),
-            std::ref(container_)
-        };
+    WebSocketConnection(
+        EventQueue<Event>& container,
+        std::string host, 
+        std::string path, 
+        std::string port
+    ) 
+        : eventQueue_ {container}
+        , host_ {std::move(host)}
+        , path_ {std::move(path)}
+        , port_ {std::move(port)}
+        , stopThread_ {false}
+    {   
+        readThread_ = std::thread{&WebSocketConnection::readFromWebsocket, this};
     }
 
     auto stopThread() -> void {
         stopThread_ = true;
-        streamThread_.join();
+        readThread_.join();
     }
 private:
-
-    auto streamFromWebsocket(bool& stopThread, TradeVolumeContainer& container) -> void {
-        
-
-        
-        auto host = std::string{"stream.binance.com"};
-        
-        auto path = std::string{"/ws/btcusdt@trade"};
-        auto port = std::string{"9443"};
-
-        auto ioContext = boost::asio::io_context{};
+    auto connectWebsocket(
+        boost::asio::io_context& ioContext,
+        std::string host, 
+        std::string path, 
+        std::string port
+    ) -> boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> {
         auto sslContext = boost::asio::ssl::context{
             boost::asio::ssl::context::tlsv12_client
         };
@@ -483,30 +158,380 @@ private:
         webSocket.next_layer().handshake(boost::asio::ssl::stream_base::client);
         webSocket.handshake(host, path);
 
+        return webSocket;
+    }
+
+    auto readFromWebsocket() -> void {
+        auto ioContext = boost::asio::io_context{};
+        auto webSocket = connectWebsocket(ioContext, host_, path_, port_);
+
         auto streamBuffer = boost::beast::flat_buffer{};
 
-        while(webSocket.read(streamBuffer)) {
+        while (webSocket.read(streamBuffer)) {
             auto rawData = static_cast<char const*>(streamBuffer.data().data());
             auto length = streamBuffer.data().size();
 
             auto data = nlohmann::json::parse(rawData, rawData + length);
 
-            auto price = std::stod(data["p"].get<std::string>());
-            auto volume = std::stod(data["q"].get<std::string>());
-            container.push(price, volume);
+            auto event = Event{data};
+
+            eventQueue_.pushAndNotify(event);
 
             streamBuffer.consume(streamBuffer.size());
-            
-            if (stopThread == true) {
+            if (stopThread_ == true) {
                 break;
             }
         }
-
         try {
             webSocket.close(boost::beast::websocket::close_code::normal);
         } catch (const boost::system::system_error& err) {
             if (err.code() != boost::asio::ssl::error::stream_truncated) {
                 std::cerr << "unexpected error on closing the websocket" << std::endl;
+            }
+        }
+    }
+
+};
+
+struct IntPriceVolume {
+    int price_;
+    double volume_;
+};
+
+class OrderBookWebSocketEvent {
+public:
+    long long int firstUpdateId_;
+    long long int lastUpdateId_;
+    std::vector<IntPriceVolume> bids_;
+    std::vector<IntPriceVolume> asks_;
+
+public:
+    OrderBookWebSocketEvent() = default;
+    
+    OrderBookWebSocketEvent(const OrderBookWebSocketEvent&) = default;
+
+    OrderBookWebSocketEvent& operator=(const OrderBookWebSocketEvent&) = default;
+
+    OrderBookWebSocketEvent& operator=(OrderBookWebSocketEvent&&) = default;
+
+    OrderBookWebSocketEvent(OrderBookWebSocketEvent&& event) 
+        : firstUpdateId_ {event.firstUpdateId_}
+        , lastUpdateId_ {event.lastUpdateId_}
+        , bids_ {std::move(event.bids_)}
+        , asks_ {std::move(event.asks_)}
+    {}
+
+    OrderBookWebSocketEvent(nlohmann::json& data) {
+        firstUpdateId_ = data["U"].get<long long int>();
+        lastUpdateId_ = data["u"].get<long long int>();
+        
+        for (auto& elem : data["b"]) {
+            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()) * 100);
+            auto volume = std::stod(elem[1].get<std::string>());
+
+            bids_.push_back({priceInt, volume});
+        }
+        for (auto& elem : data["a"]) {
+            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()) * 100);
+            auto volume = std::stod(elem[1].get<std::string>());
+
+            asks_.push_back({priceInt, volume});
+        } 
+    }
+};
+
+class OrderBookContainer {
+private:
+    long long int lastUpdateId_ {-1};
+    std::map<int, double> asks_;
+    std::map<int, double> bids_;
+    std::mutex mtx_;
+
+public:
+    auto getLastUpdateId() -> long long int {
+        auto lock = std::lock_guard{mtx_};
+        return lastUpdateId_;
+    }
+    auto getMtx() -> std::mutex& {
+        return mtx_;
+    }
+
+    auto getOrderBook() -> std::pair<std::vector<IntPriceVolume>, std::vector<IntPriceVolume>> {
+        auto lock = std::lock_guard{mtx_};
+
+        auto askBook = std::vector<IntPriceVolume>{};
+        askBook.reserve(asks_.size());
+        auto bidBook = std::vector<IntPriceVolume>{};
+        bidBook.reserve(bids_.size());
+        for (auto it {asks_.begin()}; it != asks_.end(); it++) {
+            askBook.push_back({it->first, it->second});
+        }
+
+        for (auto it {bids_.begin()}; it != bids_.end(); it++) {
+            bidBook.push_back({it->first, it->second});
+        }
+        
+        return {askBook, bidBook};
+    }
+
+    auto print() -> void {
+        auto [ask, bid] = getOrderBook();
+        std::cout << "OrderBook\n";
+
+        std::cout << "Asks\n";
+        for (auto& [price, vol] : ask) {
+            std::cout << price << " - " << vol << '\n';
+        }
+
+        std::cout << "Bids\n";
+        for (auto& [price, vol] : bid) {
+            std::cout << price << " - " << vol << '\n';
+        }
+    }
+
+    auto clearOrderBook() -> void {
+        auto lock = std::lock_guard{mtx_};
+        lastUpdateId_ = -1;
+        asks_.clear();
+        bids_.clear();
+    }
+
+    auto setOrderBrookFromJson(nlohmann::json& data) -> void {
+        auto lock = std::lock_guard{mtx_};
+
+        lastUpdateId_ = data["lastUpdateId"].get<long long int>();
+
+        for (auto& elem : data["bids"]) {
+            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()) * 100);
+            auto volume = std::stod(elem[1].get<std::string>());
+
+            bids_.emplace(priceInt, volume);
+        }
+        for (auto& elem : data["asks"]) {
+            auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()) * 100);
+            auto volume = std::stod(elem[1].get<std::string>());
+
+            asks_.emplace(priceInt, volume);
+        }
+    }
+
+    auto updateOrderBookFromEvent(OrderBookWebSocketEvent& currEvent) {
+        auto lock = std::lock_guard{mtx_};
+
+        for (IntPriceVolume& elem : currEvent.asks_) {
+            if (elem.volume_ != 0) {
+                asks_.insert_or_assign(elem.price_, elem.volume_);
+            } else {
+                asks_.erase(elem.price_);
+            }
+        }
+
+        for (IntPriceVolume& elem : currEvent.bids_) {
+            if (elem.volume_ != 0) {
+                bids_.insert_or_assign(elem.price_, elem.volume_);
+            } else {
+                bids_.erase(elem.price_);
+            }
+        }
+
+        lastUpdateId_ = currEvent.lastUpdateId_;
+    }
+};
+
+class OrderBookUpdater {
+private:
+    OrderBookContainer& container_;
+    EventQueue<OrderBookWebSocketEvent>& eventsQueue_;
+
+    std::atomic_bool stopUpdate_;
+
+    std::thread webSocketThread_;
+    std::thread updateOrderBookThread_;
+
+public:
+    OrderBookUpdater(OrderBookContainer& container, EventQueue<OrderBookWebSocketEvent>& events)
+        : container_ {container}
+        , eventsQueue_ {events}
+        , stopUpdate_ {false}
+    {
+        updateOrderBookThread_ = std::thread{&OrderBookUpdater::continualUpdate, this};
+    }
+
+    auto stopUpdate() -> void {
+        stopUpdate_ = true;
+        eventsQueue_.getCv().notify_all();
+
+        updateOrderBookThread_.join();
+    }
+
+private:
+
+    auto continualUpdate() -> void {
+restart_update_orderbook_process:
+        auto eventBufferLock = std::unique_lock<std::mutex>{eventsQueue_.getMtx()};
+        auto& eventBufferCv = eventsQueue_.getCv();
+
+        auto veryFirstUpdateId = int{};
+        
+        eventBufferCv.wait(eventBufferLock, [this]() {
+            return eventsQueue_.IsNotEmptyFlag() || stopUpdate_;
+        });
+        eventBufferLock.unlock();
+
+        if (stopUpdate_) {
+            return;
+        }
+
+        veryFirstUpdateId = eventsQueue_.getFront().firstUpdateId_;
+        
+        auto client = httplib::Client{"https://api.binance.com"};
+        auto path = std::string{"/api/v3/depth?symbol=BTCUSDT&limit=5000"};
+
+        long long int snapshotLastUpdateId = -1;
+        auto snapshotJson = nlohmann::json{};
+
+        while (snapshotLastUpdateId == -1 || snapshotLastUpdateId < veryFirstUpdateId) {
+            auto res = httplib::Result{client.Get(path)};
+            if (res->status != 200) {
+                std::cout << "error in result\n";
+            }
+            snapshotJson = nlohmann::json::parse(res->body);
+            snapshotLastUpdateId = snapshotJson["lastUpdateId"].get<long long int>();
+        }
+
+        eventsQueue_.removeOldEvents(snapshotLastUpdateId);
+
+        container_.setOrderBrookFromJson(snapshotJson);
+      
+        while (true) {
+
+            auto currList = EventQueue<OrderBookWebSocketEvent>{};
+            eventBufferLock.lock();
+            eventBufferCv.wait(eventBufferLock, [this]() {
+                return eventsQueue_.IsNotEmptyFlag() || stopUpdate_;
+            });
+
+            if (stopUpdate_) {
+                return;
+            }
+
+            eventBufferLock.unlock();
+
+            eventsQueue_.spliceTo(currList);
+            
+            for (auto& currEvent : currList.getData()) {
+                auto currOrderBookLastUpdateId = container_.getLastUpdateId();
+
+                if (currEvent.lastUpdateId_ < currOrderBookLastUpdateId) {
+                    continue;
+                }
+
+                if (currEvent.firstUpdateId_ > (currOrderBookLastUpdateId + 1)) {
+                    container_.clearOrderBook();
+                    eventsQueue_.clear();
+
+                    goto restart_update_orderbook_process;
+                }
+                
+                container_.updateOrderBookFromEvent(currEvent);
+            }
+        }
+
+    }
+};
+
+class TradeVolumeWebSocketEvent: public IntPriceVolume {
+public:
+    TradeVolumeWebSocketEvent(nlohmann::json& data) {
+        price_ = std::stod(data["p"].get<std::string>());
+        volume_ = std::stod(data["q"].get<std::string>());
+    }
+};
+
+class TradeVolumeContainer {
+private:
+    std::mutex mtx_;
+    std::map<int, double> tradeVolume_;
+
+public:
+    auto print() -> void {
+        auto lock = std::lock_guard<std::mutex>{mtx_};
+        for (auto& [price, vol] : tradeVolume_) {
+            std::cout << '(' << price << ", " << vol << ")\n";
+        }
+    }
+
+    auto getRange(double low, double high) -> std::vector<std::map<int, double>::iterator> {
+        auto lock = std::lock_guard<std::mutex>{mtx_};
+        auto volumeArr = std::vector<std::map<int, double>::iterator>{};
+        auto firstElem = tradeVolume_.lower_bound(static_cast<int>(low));
+        auto lastElem = tradeVolume_.upper_bound(static_cast<int>(high));
+        for (auto curr {firstElem}; curr != lastElem; curr++) {
+            volumeArr.emplace_back(curr);
+        }
+        volumeArr.emplace_back(lastElem);
+        return volumeArr;
+    }
+
+    auto updateFromEvent(TradeVolumeWebSocketEvent& event) {
+        auto lock = std::lock_guard<std::mutex>{mtx_};
+        auto key = static_cast<int>(event.price_ * 100);
+
+        auto foundIt = tradeVolume_.find(key);
+        if (foundIt == tradeVolume_.end()) {
+            tradeVolume_.emplace(key, event.volume_);
+        } else {
+            foundIt->second += event.volume_;
+        }
+    }
+};
+
+class TradeVolumeUpdater {
+private:
+    TradeVolumeContainer& container_;
+    EventQueue<TradeVolumeWebSocketEvent>& queue_;
+
+    std::thread updateThread_;
+    bool stopThread_;
+
+public:
+    TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<TradeVolumeWebSocketEvent>& queue)
+        : container_ {container}
+        , queue_ {queue}
+        , stopThread_ {false}
+    {
+        updateThread_ = std::thread{&TradeVolumeUpdater::updateFromEventQueue, this};
+    }
+
+    auto stopThread() -> void {
+        stopThread_ = true;
+        updateThread_.join();
+    }
+private:
+    auto updateFromEventQueue() -> void {
+        auto& eventQueueCv = queue_.getCv();
+        auto eventQueueLock = std::unique_lock{queue_.getMtx()};
+        eventQueueLock.unlock();
+        while (true) {
+            auto currEvents = EventQueue<TradeVolumeWebSocketEvent>{};
+
+            eventQueueLock.lock();
+            eventQueueCv.wait(eventQueueLock, [this] () {
+                return queue_.IsNotEmptyFlag() || stopThread_;
+            });
+
+            if (stopThread_) {
+                return;
+            }
+            
+            eventQueueLock.unlock();
+            queue_.spliceTo(currEvents);
+
+            for (auto& currEvent : currEvents.getData()) {
+                if (stopThread_) {
+                    return;
+                }
+                container_.updateFromEvent(currEvent);
             }
         }
     }
@@ -806,41 +831,33 @@ int main() {
     //     "tradeDecision.py"
     // };
 
-    // auto btcVolume = TradeVolumeContainer{};
-    // auto webSocketThread = ReadDataWebSocket{btcVolume};
+    auto btcVolume = TradeVolumeContainer{};
+    auto btcVolumeEventQueue = EventQueue<TradeVolumeWebSocketEvent>{};
+    auto btcVolumeEventWebScoket = WebSocketConnection<TradeVolumeWebSocketEvent>{
+        btcVolumeEventQueue,
+        "stream.binance.com",
+        "/ws/btcusdt@trade",
+        "9443"
+    };
+    auto btcVolumeUpdater = TradeVolumeUpdater{btcVolume, btcVolumeEventQueue};
 
-    auto orderBook = OrderBook{};
+    // auto orderBook = OrderBookContainer{};
+    // auto orderBookEventQueue = EventQueue<OrderBookWebSocketEvent>{};
+    // auto orderBookWebSocket = WebSocketConnection<OrderBookWebSocketEvent>{
+    //     orderBookEventQueue,
+    //     "stream.binance.com",
+    //     "/ws/btcusdt@depth@100ms",
+    //     "9443"
+    // };
+    // auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
+    // orderBook.print();
 
-    auto [ask, bid] = orderBook.getOrderBook();
+    // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-    for (auto& [price, vol] : ask) {
-        std::cout << price << " - " << vol << '\n';
-    }
-
-    for (auto& [price, vol] : bid) {
-        std::cout << price << " - " << vol << '\n';
-    }
-
-    std::cout << "sleepign again" << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-
-    std::cout << "------------------" << std::endl;
-    std::cout << "two second later" << std::endl;
-
-    auto tempBook = orderBook.getOrderBook();
-    ask = tempBook.first;
-    bid = tempBook.second;
-
-    for (auto& [price, vol] : ask) {
-        std::cout << price << " - " << vol << '\n';
-    }
-
-    for (auto& [price, vol] : bid) {
-        std::cout << price << " - " << vol << '\n';
-    }
+    // orderBook.print();
 
     int stop{};
     std::cin >> stop;
@@ -848,11 +865,14 @@ int main() {
         // readThread.stopThread();
         // manageDecisionPython.endProcess();
 
-        // webSocketThread.stopThread();
+        btcVolumeEventWebScoket.stopThread();
+        btcVolumeUpdater.stopThread();
 
-        orderBook.stopOrderBook();
-
+        // orderBookWebSocket.stopThread();
+        // orderBookUpdater.stopUpdate();
     }
+
+    btcVolume.print();
     // orderBook.getOrderBook();
     // btcVolume.print();
 }
