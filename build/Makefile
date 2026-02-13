@@ -153,6 +153,30 @@ apiRequest.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/trader.dir/build.make CMakeFiles/trader.dir/apiRequest.cpp.s
 .PHONY : apiRequest.cpp.s
 
+simdjson/simdjson.o: simdjson/simdjson.cpp.o
+.PHONY : simdjson/simdjson.o
+
+# target to build an object file
+simdjson/simdjson.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/trader.dir/build.make CMakeFiles/trader.dir/simdjson/simdjson.cpp.o
+.PHONY : simdjson/simdjson.cpp.o
+
+simdjson/simdjson.i: simdjson/simdjson.cpp.i
+.PHONY : simdjson/simdjson.i
+
+# target to preprocess a source file
+simdjson/simdjson.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/trader.dir/build.make CMakeFiles/trader.dir/simdjson/simdjson.cpp.i
+.PHONY : simdjson/simdjson.cpp.i
+
+simdjson/simdjson.s: simdjson/simdjson.cpp.s
+.PHONY : simdjson/simdjson.s
+
+# target to generate assembly for a file
+simdjson/simdjson.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/trader.dir/build.make CMakeFiles/trader.dir/simdjson/simdjson.cpp.s
+.PHONY : simdjson/simdjson.cpp.s
+
 timer.o: timer.cpp.o
 .PHONY : timer.o
 
@@ -189,6 +213,9 @@ help:
 	@echo "... apiRequest.o"
 	@echo "... apiRequest.i"
 	@echo "... apiRequest.s"
+	@echo "... simdjson/simdjson.o"
+	@echo "... simdjson/simdjson.i"
+	@echo "... simdjson/simdjson.s"
 	@echo "... timer.o"
 	@echo "... timer.i"
 	@echo "... timer.s"

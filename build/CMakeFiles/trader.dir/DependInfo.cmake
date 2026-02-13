@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/apiRequest.cpp" "CMakeFiles/trader.dir/apiRequest.cpp.o" "gcc" "CMakeFiles/trader.dir/apiRequest.cpp.o.d"
+  "/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/simdjson/simdjson.cpp" "CMakeFiles/trader.dir/simdjson/simdjson.cpp.o" "gcc" "CMakeFiles/trader.dir/simdjson/simdjson.cpp.o.d"
   "/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/timer.cpp" "CMakeFiles/trader.dir/timer.cpp.o" "gcc" "CMakeFiles/trader.dir/timer.cpp.o.d"
   )
 
