@@ -6,8 +6,10 @@
 
 class Timer {
 private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> start{}, end{};
-    std::chrono::duration<double> duration;
+    std::chrono::time_point<std::chrono::high_resolution_clock> start_;
+    std::chrono::time_point<std::chrono::high_resolution_clock> end_;
+
+    std::chrono::duration<double> duration_;
 
 public:
     Timer();
