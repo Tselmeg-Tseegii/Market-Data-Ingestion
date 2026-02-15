@@ -15,7 +15,7 @@ find_package(OpenSSL REQUIRED)
 # --- Build Executable ---
 # CHANGED: "main.cpp" -> "test.cpp" because main.cpp does not exist in your file list.
 # Change "test.cpp" to whichever file contains your "int main()" function.
-add_executable(trader apiRequest.cpp timer.cpp)
+add_executable(trader apiRequest.cpp timer.cpp simdjson/simdjson.cpp)
 
 # --- Link Libraries ---
 target_link_libraries(trader PRIVATE

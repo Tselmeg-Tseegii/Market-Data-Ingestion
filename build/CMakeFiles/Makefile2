@@ -85,12 +85,12 @@ clean: CMakeFiles/trader.dir/clean
 CMakeFiles/trader.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/trader.dir/build.make CMakeFiles/trader.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/trader.dir/build.make CMakeFiles/trader.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles --progress-num=1,2,3 "Built target trader"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles --progress-num=1,2,3,4 "Built target trader"
 .PHONY : CMakeFiles/trader.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/trader.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles 3
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles 4
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/trader.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles 0
 .PHONY : CMakeFiles/trader.dir/rule
@@ -102,7 +102,7 @@ trader: CMakeFiles/trader.dir/rule
 # codegen rule for target.
 CMakeFiles/trader.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/trader.dir/build.make CMakeFiles/trader.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles --progress-num=1,2,3 "Finished codegen for target trader"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/build/CMakeFiles --progress-num=1,2,3,4 "Finished codegen for target trader"
 .PHONY : CMakeFiles/trader.dir/codegen
 
 # clean rule for target.

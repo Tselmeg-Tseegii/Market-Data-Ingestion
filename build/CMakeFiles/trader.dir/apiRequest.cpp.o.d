@@ -826,6 +826,20 @@ CMakeFiles/trader.dir/apiRequest.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__filesystem/u8path.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/map \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__tree \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/charconv \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/chars_format.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__utility/to_underlying.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/from_chars_floating_point.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/from_chars_result.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/from_chars_integral.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/traits.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/tables.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/to_chars_base_10.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/to_chars.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/to_chars_floating_point.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/to_chars_result.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/to_chars_integral.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__type_traits/make_32_64_or_128_bit.h \
   /opt/local/include/boost/asio.hpp \
   /opt/local/include/boost/asio/associated_allocator.hpp \
   /opt/local/include/boost/asio/detail/config.hpp \
@@ -850,7 +864,6 @@ CMakeFiles/trader.dir/apiRequest.cpp.o: \
   /opt/local/include/boost/config/helper_macros.hpp \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/any \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/memory_resource \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/charconv \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/execution \
   /opt/local/include/boost/config/detail/cxx_composite.hpp \
   /opt/local/include/boost/version.hpp \
@@ -3236,6 +3249,16 @@ CMakeFiles/trader.dir/apiRequest.cpp.o: \
   /opt/local/include/boost/beast/websocket/impl/ssl.hpp \
   /Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/nlohmann/json.hpp \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/valarray \
+  /Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/simdjson/simdjson.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/cfloat \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/float.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/17/include/float.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/float.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/strings.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/17/include/avx512vbmi2intrin.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/17/include/arm_neon.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/17/include/arm_bf16.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/17/include/arm_vector_types.h \
   /Users/tselmeg_otgonbayar/programming/ProjectDataIngestion/httplib.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/ifaddrs.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX26.2.sdk/usr/include/os/availability.h \
