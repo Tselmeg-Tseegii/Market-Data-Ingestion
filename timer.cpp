@@ -6,7 +6,10 @@ Timer::Timer() {
 
 Timer::~Timer() {
     end = std::chrono::high_resolution_clock::now();
-    duration = end - start;
+    auto startnano = std::chrono::time_point_cast<std::chrono::nanoseconds>(start).time_since_epoch().count();
+    auto endnano = std::chrono::time_point_cast<std::chrono::nanoseconds>(end).time_since_epoch().count();
+    auto duration = endnano - startnano;
+    std::cout << duration << '\n';
 }
 
 auto Timer::stop() -> void {
