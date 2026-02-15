@@ -913,10 +913,20 @@ int main() {
     // auto orderBookWebSocket = WebSocketConnection<OrderBookWebSocketEvent>{
     //     orderBookEventQueue,
     //     "stream.binance.com",
-    //     "/ws/btcusdt@depth@100ms",
+    //     "/ws/btcusdt@trade",
     //     "9443"
     // };
-    // auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
+    // auto btcVolumeUpdater = TradeVolumeUpdater{btcVolume, btcVolumeEventQueue};
+
+    auto orderBook = OrderBookContainer{};
+    auto orderBookEventQueue = EventQueue<OrderBookWebSocketEvent>{};
+    auto orderBookWebSocket = WebSocketConnection<OrderBookWebSocketEvent>{
+        orderBookEventQueue,
+        "stream.binance.com",
+        "/ws/btcusdt@depth@100ms",
+        "9443"
+    };
+    auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
 
     // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
@@ -932,11 +942,11 @@ int main() {
         // readThread.stopThread();
         // manageDecisionPython.endProcess();
 
-        btcVolumeEventWebScoket.stopThread();
-        btcVolumeUpdater.stopThread();
+        // btcVolumeEventWebScoket.stopThread();
+        // btcVolumeUpdater.stopThread();
 
-        // orderBookWebSocket.stopThread();
-        // orderBookUpdater.stopUpdate();
+        orderBookWebSocket.stopThread();
+        orderBookUpdater.stopUpdate();
     }
     // btcVolume.print();
     // orderBook.getOrderBook();
