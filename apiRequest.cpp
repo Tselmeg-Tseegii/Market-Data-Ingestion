@@ -32,30 +32,14 @@
 #define FILE_CANDLE_DATA "data/candleData.txt"
 #define FILE_PREDICTION_DATA "data/predictionData.txt"
 
-struct RawInputWithParser {
+struct RawEvent {
     boost::beast::flat_buffer data_;
-    std::unique_ptr<simdjson::ondemand::parser> parser_;
-    simdjson::ondemand::document doc_;
-    bool parserIsActive_;
 
-    RawInputWithParser() = default;
+    RawEvent() = default;
 
-    RawInputWithParser(boost::beast::flat_buffer&& data)
+    RawEvent(boost::beast::flat_buffer&& data)
         : data_ {std::move(data)}
-        , parser_ {std::make_unique<simdjson::ondemand::parser>()}
-        , doc_ {}
-        , parserIsActive_ {false}
     {}
-
-    auto initialiseParser() -> void {
-        auto rawDataPtr = static_cast<char const*>(data_.data().data());
-
-        auto errors = parser_->iterate(
-            simdjson::padded_string_view(rawDataPtr, data_.size(), data_.capacity())
-        ).get(doc_);
-
-        parserIsActive_ = true;
-    }
 };
 
 template<typename Event>
@@ -215,6 +199,12 @@ struct IntPriceVolume {
     int price_;
     double volume_;
 
+    IntPriceVolume() = default;
+    IntPriceVolume(int price, double volume)
+        : price_ {price}
+        , volume_ {volume}
+    {}
+
     auto operator<(const IntPriceVolume& other) -> bool {
         return price_ < other.price_;
     }
@@ -224,15 +214,30 @@ struct IntPriceVolume {
     }
 };
 
-struct OrderBookWebSocketEvent: RawInputWithParser {
+struct OrderBookWebSocketEvent: RawEvent {
+    std::unique_ptr<simdjson::ondemand::parser> parser_;
+    simdjson::ondemand::document doc_;
+    bool parserIsActive_;
+
     long long int firstUpdateId_ {-1};
     long long int lastUpdateId_ {-1};
 
     OrderBookWebSocketEvent() = default;
 
     OrderBookWebSocketEvent(boost::beast::flat_buffer&& data)
-        : RawInputWithParser(std::move(data))
+        : RawEvent(std::move(data))
     {}
+
+    auto initialiseParser() -> void {
+        parser_ = std::make_unique<simdjson::ondemand::parser>();
+        auto rawDataPtr = static_cast<char const*>(data_.data().data());
+
+        auto errors = parser_->iterate(
+            simdjson::padded_string_view(rawDataPtr, data_.size(), data_.capacity())
+        ).get(doc_);
+
+        parserIsActive_ = true;
+    }
 
     auto getFirstUpdateId() -> long long int {
         if (firstUpdateId_ == -1) {
@@ -329,8 +334,6 @@ public:
     }
 
     auto updateOrderBookFromEvent(OrderBookWebSocketEvent& currEvent) {
-        auto lock = std::lock_guard<std::mutex>{mtx_};
-
         for (auto elem : currEvent.doc_["b"]) {
             auto it = elem.begin();
             auto priceDouble = double{};
@@ -370,7 +373,6 @@ public:
         }
 
         lastUpdateId_ = currEvent.getLastUpdateId();
-        std::cout << lastUpdateId_ << std::endl;
     }
 };
 
@@ -497,20 +499,12 @@ restart_update_orderbook_process:
     }
 };
 
-class TradeVolumeWebSocketEvent: public IntPriceVolume {
-public:
-    TradeVolumeWebSocketEvent(nlohmann::json& data) {
-        price_ = std::stod(data["p"].get<std::string>());
-        volume_ = std::stod(data["q"].get<std::string>());
-    }
-};
-
 class FlatContainer {
 private:
     std::vector<IntPriceVolume> data_;
 
 public:
-    auto update(int price, double volume) {
+    auto insertOrUpdate(int price, double volume) {
         auto it = std::lower_bound(data_.begin(), data_.end(), price, [](const IntPriceVolume& elem, int priceKey) {
             return elem.price_ < priceKey;
         });
@@ -526,8 +520,7 @@ public:
 class TradeVolumeContainer {
 private:
     std::mutex mtx_;
-    std::map<int, double> tradeVolume_;
-    // FlatContainer tradeVolume_;
+    FlatContainer tradeVolume_;
 
 public:
     // auto print() -> void {
@@ -537,41 +530,24 @@ public:
     //     }
     // }
 
-    // auto getRange(double low, double high) -> std::vector<std::map<int, double>::iterator> {
-    //     auto lock = std::lock_guard<std::mutex>{mtx_};
-    //     auto volumeArr = std::vector<std::map<int, double>::iterator>{};
-    //     auto firstElem = tradeVolume_.lower_bound(static_cast<int>(low));
-    //     auto lastElem = tradeVolume_.upper_bound(static_cast<int>(high));
-    //     for (auto curr {firstElem}; curr != lastElem; curr++) {
-    //         volumeArr.emplace_back(curr);
-    //     }
-    //     volumeArr.emplace_back(lastElem);
-    //     return volumeArr;
-    // }
-
-    auto updateFromEvent(TradeVolumeWebSocketEvent& event) {
-        auto lock = std::lock_guard<std::mutex>{mtx_};
-        auto key = static_cast<int>(event.price_ * 100);
-
-        auto foundIt = tradeVolume_.find(key);
-        if (foundIt == tradeVolume_.end()) {
-            tradeVolume_.emplace(key, event.volume_);
-        } else {
-            foundIt->second += event.volume_;
-        }
+    auto updateFromEvent(simdjson::ondemand::document& data) {
+        auto price = static_cast<int>(data["p"].get_double_in_string().value() * 100);
+        auto volume = data["q"].get_double_in_string().value();
+        
+        tradeVolume_.insertOrUpdate(price, volume);
     }
 };
 
 class TradeVolumeUpdater {
 private:
     TradeVolumeContainer& container_;
-    EventQueue<TradeVolumeWebSocketEvent>& queue_;
+    EventQueue<RawEvent>& queue_;
 
     std::thread updateThread_;
     bool stopThread_;
 
 public:
-    TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<TradeVolumeWebSocketEvent>& queue)
+    TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<RawEvent>& queue)
         : container_ {container}
         , queue_ {queue}
         , stopThread_ {false}
@@ -589,8 +565,10 @@ private:
         auto& eventQueueCv = queue_.getCv();
         auto eventQueueLock = std::unique_lock{queue_.getMtx()};
         eventQueueLock.unlock();
+
+        auto jsonParser = simdjson::ondemand::parser{};
         while (true) {
-            auto currEvents = EventQueue<TradeVolumeWebSocketEvent>{};
+            auto currEvents = EventQueue<RawEvent>{};
 
             eventQueueLock.lock();
             eventQueueCv.wait(eventQueueLock, [this] () {
@@ -610,7 +588,17 @@ private:
                 if (stopThread_) {
                     return;
                 }
-                container_.updateFromEvent(currEvent);
+                auto doc = simdjson::ondemand::document{};
+
+                auto& currEventBuffer = currEvent.data_;
+
+                auto currEventDataPtr = static_cast<char const*>(currEventBuffer.data().data());
+
+                auto errors = jsonParser.iterate(
+                    simdjson::padded_string_view(currEventDataPtr, currEventBuffer.size(), currEventBuffer.capacity())
+                ).get(doc);
+
+                container_.updateFromEvent(doc);
             }
         }
     }
@@ -910,25 +898,25 @@ int main() {
     //     "tradeDecision.py"
     // };
 
-    // auto btcVolume = TradeVolumeContainer{};
-    // auto btcVolumeEventQueue = EventQueue<TradeVolumeWebSocketEvent>{};
-    // auto btcVolumeEventWebScoket = WebSocketConnection<TradeVolumeWebSocketEvent>{
-    //     btcVolumeEventQueue,
-    //     "stream.binance.com",
-    //     "/ws/btcusdt@trade",
-    //     "9443"
-    // };
-    // auto btcVolumeUpdater = TradeVolumeUpdater{btcVolume, btcVolumeEventQueue};
-
-    auto orderBook = OrderBookContainer{};
-    auto orderBookEventQueue = EventQueue<OrderBookWebSocketEvent>{};
-    auto orderBookWebSocket = WebSocketConnection<OrderBookWebSocketEvent>{
-        orderBookEventQueue,
+    auto btcVolume = TradeVolumeContainer{};
+    auto btcVolumeEventQueue = EventQueue<RawEvent>{};
+    auto btcVolumeEventWebScoket = WebSocketConnection<RawEvent>{
+        btcVolumeEventQueue,
         "stream.binance.com",
-        "/ws/btcusdt@depth@100ms",
+        "/ws/btcusdt@trade",
         "9443"
     };
-    auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
+    auto btcVolumeUpdater = TradeVolumeUpdater{btcVolume, btcVolumeEventQueue};
+
+    // auto orderBook = OrderBookContainer{};
+    // auto orderBookEventQueue = EventQueue<OrderBookWebSocketEvent>{};
+    // auto orderBookWebSocket = WebSocketConnection<OrderBookWebSocketEvent>{
+    //     orderBookEventQueue,
+    //     "stream.binance.com",
+    //     "/ws/btcusdt@depth@100ms",
+    //     "9443"
+    // };
+    // auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
 
     // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
@@ -944,11 +932,11 @@ int main() {
         // readThread.stopThread();
         // manageDecisionPython.endProcess();
 
-        // btcVolumeEventWebScoket.stopThread();
-        // btcVolumeUpdater.stopThread();
+        btcVolumeEventWebScoket.stopThread();
+        btcVolumeUpdater.stopThread();
 
-        orderBookWebSocket.stopThread();
-        orderBookUpdater.stopUpdate();
+        // orderBookWebSocket.stopThread();
+        // orderBookUpdater.stopUpdate();
     }
     // btcVolume.print();
     // orderBook.getOrderBook();
