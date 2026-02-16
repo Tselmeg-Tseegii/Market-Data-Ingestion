@@ -4,6 +4,7 @@
 
 #include "core/marketDataTypes.hpp"
 #include "external/simdjson/simdjson.h"
+#include "core/rawEvent.hpp"
 
 namespace MarketData {
 
@@ -12,7 +13,7 @@ private:
     std::mutex mtx_;
     FlatContainer tradeVolume_;
 public:
-    auto updateFromEvent(simdjson::ondemand::document& parsedData) -> void;
+    auto updateFromEvent(RawEvent& event, simdjson::ondemand::parser& parser) -> void;
 
     auto print() -> void;
 };

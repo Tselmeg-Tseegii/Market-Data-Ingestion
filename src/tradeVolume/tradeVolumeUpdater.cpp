@@ -44,17 +44,8 @@ auto TradeVolumeUpdater::updateFromEventQueue() -> void {
             if (stopThread_) {
                 return;
             }
-            auto doc = simdjson::ondemand::document{};
 
-            auto& currEventBuffer = currEvent.data_;
-
-            auto currEventDataPtr = static_cast<char const*>(currEventBuffer.data().data());
-
-            auto errors = jsonParser.iterate(
-                simdjson::padded_string_view(currEventDataPtr, currEventBuffer.size(), currEventBuffer.capacity())
-            ).get(doc);
-
-            container_.updateFromEvent(doc);
+            container_.updateFromEvent(currEvent, jsonParser);
         }
     }
 }

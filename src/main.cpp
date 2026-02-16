@@ -18,15 +18,15 @@ using namespace MarketData;
 
 int main() {
     
-    auto goldPrices = PriceCandleContainer{};
+    // auto goldPrices = PriceCandleContainer{};
     
-    auto readThread = ReadDataThread{goldPrices};
+    // auto readThread = ReadDataThread{goldPrices};
 
-    auto manageDecisionPython = ManagePythonProcess{
-        goldPrices, 
-        "pythonScript/tradeDecision.py",
-        "data/predictionData.txt"
-    };
+    // auto manageDecisionPython = ManagePythonProcess{
+    //     goldPrices, 
+    //     "pythonScript/tradeDecision.py",
+    //     "data/predictionData.txt"
+    // };
 
     auto btcVolume = TradeVolumeContainer{};
     auto btcVolumeEventQueue = EventQueue<RawEvent>{};
@@ -39,36 +39,36 @@ int main() {
     auto btcVolumeUpdater = TradeVolumeUpdater{btcVolume, btcVolumeEventQueue};
 
 
-    auto orderBook = OrderBookContainer{};
-    auto orderBookEventQueue = EventQueue<OrderBookWebSocketEvent>{};
-    auto orderBookWebSocket = WebSocketConnection<OrderBookWebSocketEvent>{
-        orderBookEventQueue,
-        "stream.binance.com",
-        "/ws/btcusdt@depth@100ms",
-        "9443"
-    };
-    auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
+    // auto orderBook = OrderBookContainer{};
+    // auto orderBookEventQueue = EventQueue<OrderBookWebSocketEvent>{};
+    // auto orderBookWebSocket = WebSocketConnection<OrderBookWebSocketEvent>{
+    //     orderBookEventQueue,
+    //     "stream.binance.com",
+    //     "/ws/btcusdt@depth@100ms",
+    //     "9443"
+    // };
+    // auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-    orderBook.print();
+    // orderBook.print();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-    orderBook.print();
+    // orderBook.print();
 
     int stop{};
     std::cin >> stop;
     if (stop == -1) {
-        readThread.stopThread();
-        manageDecisionPython.endProcess();
+        // readThread.stopThread();
+        // manageDecisionPython.endProcess();
 
         btcVolumeEventWebScoket.stopThread();
         btcVolumeUpdater.stopThread();
 
-        orderBookWebSocket.stopThread();
-        orderBookUpdater.stopUpdate();
+        // orderBookWebSocket.stopThread();
+        // orderBookUpdater.stopUpdate();
     }
 
-    btcVolume.print();
+    // btcVolume.print();
 }
