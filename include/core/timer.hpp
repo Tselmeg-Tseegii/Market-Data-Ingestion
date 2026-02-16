@@ -1,8 +1,8 @@
-#ifndef TIMER_H
-#define TIMER_H
+#pragma once
 
 #include <chrono>
-#include <iostream>
+
+namespace MarketData {
 
 class Timer {
 private:
@@ -23,4 +23,4 @@ public:
     auto now() ->  std::chrono::time_point<std::chrono::high_resolution_clock>;
 };
 
-#endif
+}

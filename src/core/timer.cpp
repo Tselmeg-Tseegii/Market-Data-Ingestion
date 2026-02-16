@@ -1,4 +1,8 @@
-#include "timer.h"
+#include <iostream>
+
+#include "core/timer.hpp"
+
+namespace MarketData {
 
 Timer::Timer() {
     start_ = std::chrono::high_resolution_clock::now();
@@ -26,4 +30,6 @@ auto Timer::getDuration() -> double {
 
 auto Timer::now() -> std::chrono::time_point<std::chrono::high_resolution_clock> {
     return std::chrono::high_resolution_clock::now();
+}
+
 }

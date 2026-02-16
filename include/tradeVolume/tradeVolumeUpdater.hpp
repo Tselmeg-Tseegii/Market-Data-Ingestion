@@ -1,0 +1,29 @@
+#pragma once
+
+#include <thread>
+
+#include "tradeVolume/tradeVolumeContainer.hpp"
+#include "core/eventQueue.hpp"
+#include "core/rawEvent.hpp"
+
+namespace MarketData {
+
+class TradeVolumeUpdater {
+private:
+    TradeVolumeContainer& container_;
+    EventQueue<RawEvent>& queue_;
+
+    std::thread updateThread_;
+    bool stopThread_;
+
+public:
+    TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<RawEvent>& queue);
+
+    auto stopThread() -> void;
+
+private:
+    auto updateFromEventQueue() -> void;
+    
+};
+
+}
