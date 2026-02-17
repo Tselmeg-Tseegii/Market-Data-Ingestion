@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mutex>
+#include <unordered_map>
 
 #include "core/marketDataTypes.hpp"
 #include "external/simdjson/simdjson.h"
@@ -11,7 +12,7 @@ namespace MarketData {
 class TradeVolumeContainer {
 private:
     std::mutex mtx_;
-    FlatContainer tradeVolume_;
+    std::unordered_map<int, double> tradeVolume_;
 public:
     auto updateFromEvent(RawEvent& event, simdjson::ondemand::parser& parser) -> void;
 
