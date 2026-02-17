@@ -28,6 +28,7 @@ set(SOURCES
     
     src/tradeVolume/tradeVolumeContainer.cpp
     src/tradeVolume/tradeVolumeUpdater.cpp
+    src/tradeVolume/tradeVolumeWebSocketEvent.cpp
     
     src/priceCandle/priceCandleContainer.cpp
     src/priceCandle/readDataThread.cpp

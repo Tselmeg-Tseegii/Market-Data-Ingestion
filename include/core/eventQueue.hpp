@@ -34,10 +34,10 @@ public:
         return buffer_.front();
     }
 
-    auto pushAndNotify(boost::beast::flat_buffer&& data) -> void {
+    auto pushAndNotify(Event& event) -> void {
         {
             auto lock = std::lock_guard<std::mutex>{eventQueueMtx_};
-            buffer_.emplace_back(std::move(data));
+            buffer_.push_back(event);
             eventQueueIsNonEmpty_ = true;
         }
         eventQueueCv_.notify_all();

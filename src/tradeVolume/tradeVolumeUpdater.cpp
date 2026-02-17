@@ -3,7 +3,7 @@
 namespace MarketData {
 
 
-TradeVolumeUpdater::TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<RawEvent>& queue)
+TradeVolumeUpdater::TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<TradeVolumeWebSocketEvent>& queue)
     : container_ {container}
     , queue_ {queue}
     , stopThread_ {false}
@@ -22,9 +22,8 @@ auto TradeVolumeUpdater::updateFromEventQueue() -> void {
     auto eventQueueLock = std::unique_lock{queue_.getMtx()};
     eventQueueLock.unlock();
 
-    auto jsonParser = simdjson::ondemand::parser{};
     while (true) {
-        auto currEvents = EventQueue<RawEvent>{};
+        auto currEvents = EventQueue<TradeVolumeWebSocketEvent>{};
 
         eventQueueLock.lock();
         eventQueueCv.wait(eventQueueLock, [this] () {
@@ -38,14 +37,13 @@ auto TradeVolumeUpdater::updateFromEventQueue() -> void {
         eventQueueLock.unlock();
 
         queue_.spliceTo(currEvents);
-        
 
         for (auto& currEvent : currEvents.getData()) {
             if (stopThread_) {
                 return;
             }
 
-            container_.updateFromEvent(currEvent, jsonParser);
+            container_.updateFromEvent(currEvent);
         }
     }
 }

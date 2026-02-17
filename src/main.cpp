@@ -5,6 +5,7 @@
 #include "network/webSocketConnection.hpp"
 #include "tradeVolume/tradeVolumeContainer.hpp"
 #include "tradeVolume/tradeVolumeUpdater.hpp"
+#include "tradeVolume/tradeVolumeWebSocketEvent.hpp"
 
 #include "orderBook/orderBookWebSocketEvent.hpp"
 #include "orderBook/orderBookContainer.hpp"
@@ -29,8 +30,8 @@ int main() {
     // };
 
     auto btcVolume = TradeVolumeContainer{};
-    auto btcVolumeEventQueue = EventQueue<RawEvent>{};
-    auto btcVolumeEventWebScoket = WebSocketConnection<RawEvent>{
+    auto btcVolumeEventQueue = EventQueue<TradeVolumeWebSocketEvent>{};
+    auto btcVolumeEventWebScoket = WebSocketConnection<TradeVolumeWebSocketEvent>{
         btcVolumeEventQueue,
         "stream.binance.com",
         "/ws/btcusdt@trade",

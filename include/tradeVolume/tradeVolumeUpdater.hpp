@@ -11,13 +11,13 @@ namespace MarketData {
 class TradeVolumeUpdater {
 private:
     TradeVolumeContainer& container_;
-    EventQueue<RawEvent>& queue_;
+    EventQueue<TradeVolumeWebSocketEvent>& queue_;
 
     std::thread updateThread_;
     bool stopThread_;
 
 public:
-    TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<RawEvent>& queue);
+    TradeVolumeUpdater(TradeVolumeContainer& container, EventQueue<TradeVolumeWebSocketEvent>& queue);
 
     auto stopThread() -> void;
 

@@ -87,16 +87,24 @@ private:
         auto webSocket = connectWebsocket(ioContext, host_, path_, port_);
 
         auto jsonParser = simdjson::ondemand::parser{};
+        auto streamBuffer = boost::beast::flat_buffer{};
+        auto doc = simdjson::ondemand::document{};
         while (true) {
-            auto streamBuffer = boost::beast::flat_buffer{};
-
             webSocket.read(streamBuffer);
 
             if (streamBuffer.capacity() < streamBuffer.size() + simdjson::SIMDJSON_PADDING) {
                 streamBuffer.reserve(streamBuffer.size() + simdjson::SIMDJSON_PADDING);
             }
 
-            eventQueue_.pushAndNotify(std::move(streamBuffer));
+            auto currEventDataPtr = static_cast<char const*>(streamBuffer.data().data());
+
+            auto errors = jsonParser.iterate(
+                simdjson::padded_string_view(currEventDataPtr, streamBuffer.size(), streamBuffer.capacity())
+            ).get(doc);
+
+            auto event = Event{doc};
+
+            eventQueue_.pushAndNotify(event);
 
             if (stopThread_ == true) {
                 break;
