@@ -106,6 +106,8 @@ private:
 
             eventQueue_.pushAndNotify(event);
 
+            streamBuffer.consume(streamBuffer.size());
+
             if (stopThread_ == true) {
                 break;
             }

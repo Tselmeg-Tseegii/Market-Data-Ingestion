@@ -12,6 +12,7 @@ newTVLifeTime <- scan("newImplem/tradeVolumeLifeTime.txt")
 newNewTVLifeTime <- scan("newImplem/tradeVolumeLifeTimeParseInRead.txt")
 newNewTVLifeTimeTwo <- scan("newImplem/tradeVolumeLifeTimeParseInReadTwo.txt")
 newNewTVLifeTimeThree <- scan("newImplem/tradeVolumeLifeTimeParseInReadThree.txt")
+newNewTVLifeTimeFour <- scan("newImplem/tradeVolumeLifeTimeParseInReadFour.txt")
 
 oldOBUpdateEvent <- scan("oldImplem/orderBookUpdateFromEvent.txt")
 oldOBUpdateLoop <- scan("oldImplem/orderBookUpdateLoop.txt")
@@ -22,11 +23,11 @@ oldTVUpdateLoop <- scan("oldImplem/tradeVolumeUpdateLoop.txt")
 oldTVWebRead <- scan("oldImplem/tradeVolumeWebSocketRead.txt")
 oldTVLifeTime <- scan("oldImplem/tradeVolumeLifeTime.txt")
 
-par(mfrow = c(1, 2))
+par(mfrow = c(2, 2))
 
 compare <- function(old, new) {
-  old <- old[old <= 50000]
-  new <- new[new <= 50000]
+  old <- old[old <= 250000]
+  new <- new[new <= 250000]
   
   cat("OLD\n")
   cat("Mean:  ", mean(old), "\n")
@@ -42,8 +43,10 @@ compare <- function(old, new) {
   maxNew = max(new)
   maxAll = max(maxOld, maxNew)
   
-  hist(old, breaks = 1000, xlim = c(0, 50000))
-  hist(new, breaks = 1000, xlim = c(0, 50000))
+  hist(old, breaks = 1000, xlim = c(0, 250000))
+  plot(old, type = "l")
+  hist(new, breaks = 1000, xlim = c(0, 250000))
+  plot(new, type = "l")
 }
 
 compare(oldOBUpdateEvent, newOBUpdateEvent)
@@ -59,5 +62,4 @@ compare(oldTVLifeTime, newNewTVLifeTime)
 
 compare(newNewTVLifeTime, newNewTVLifeTimeTwo)
 compare(newNewTVLifeTimeThree, newNewTVLifeTimeTwo)
-
 

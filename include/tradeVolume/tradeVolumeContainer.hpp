@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <unordered_map>
+#include <map>
 
 #include "core/marketDataTypes.hpp"
 #include "external/simdjson/simdjson.h"
@@ -13,7 +14,7 @@ namespace MarketData {
 class TradeVolumeContainer {
 private:
     std::mutex mtx_;
-    std::unordered_map<int, double> tradeVolume_;
+    std::map<int, double> tradeVolume_;
 public:
     auto updateFromEvent(TradeVolumeWebSocketEvent& event) -> void;
 
