@@ -7,6 +7,7 @@ newOBWebRead <- scan("newImplem/orderBookWebSocketRead.txt")
 newTVUpdateEvent <- scan("newImplem/tradeVolumeUpdateFromEvent.txt")
 newTVUpdateLoop <- scan("newImplem/tradeVolumeUpdateLoop.txt")
 newTVWebRead <- scan("newImplem/tradeVolumeWebSocketRead.txt")
+newTVLifeTime <- scan("newImplem/tradeVolumeLifeTime.txt")
 
 oldOBUpdateEvent <- scan("oldImplem/orderBookUpdateFromEvent.txt")
 oldOBUpdateLoop <- scan("oldImplem/orderBookUpdateLoop.txt")
@@ -15,6 +16,7 @@ oldOBWebRead <- scan("oldImplem/orderBookWebSocketRead.txt")
 oldTVUpdateEvent <- scan("oldImplem/tradeVolumeUpdateFromEvent.txt")
 oldTVUpdateLoop <- scan("oldImplem/tradeVolumeUpdateLoop.txt")
 oldTVWebRead <- scan("oldImplem/tradeVolumeWebSocketRead.txt")
+oldTVLifeTime <- scan("oldImplem/tradeVolumeLifeTime.txt")
 
 par(mfrow = c(1, 2))
 
@@ -47,3 +49,5 @@ compare(oldOBUpdateLoop, newOBUpdateLoop)
 compare(oldTVUpdateEvent, newTVUpdateEvent)
 compare(oldTVWebRead, newTVWebRead)
 compare(oldTVUpdateLoop, newTVUpdateLoop)
+
+compare(oldTVLifeTime, newTVLifeTime)
