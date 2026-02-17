@@ -1,4 +1,5 @@
 #include "tradeVolume/tradeVolumeUpdater.hpp"
+#include "core/timer.hpp"
 
 namespace MarketData {
 
