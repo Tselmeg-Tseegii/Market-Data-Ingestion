@@ -2,37 +2,41 @@
 
 namespace MarketData {
 
-OrderBookWebSocketEvent::OrderBookWebSocketEvent(boost::beast::flat_buffer&& data)
-    : RawEvent(std::move(data))
-{}
+OrderBookWebSocketEvent::OrderBookWebSocketEvent(simdjson::ondemand::document& doc) {
+    firstUpdateId_ = doc["U"].get<long long int>().value();
 
-auto OrderBookWebSocketEvent::initialiseParser() -> void {
-    parser_ = std::make_unique<simdjson::ondemand::parser>();
-    auto rawDataPtr = static_cast<char const*>(data_.data().data());
+    for (auto elem : doc["b"]) {
+        auto it = elem.begin();
+        auto priceDouble = double{};
+        auto res = (*it).get_double_in_string().get(priceDouble);
 
-    auto errors = parser_->iterate(
-        simdjson::padded_string_view(rawDataPtr, data_.size(), data_.capacity())
-    ).get(doc_);
+        auto priceInt = static_cast<int>(priceDouble * 100);
 
-    parserIsActive_ = true;
-}
+        ++it;
 
-auto OrderBookWebSocketEvent::getFirstUpdateId() -> long long int {
-    if (firstUpdateId_ == -1) {
-        if (!parserIsActive_) {
-            this->initialiseParser();
-        }
-        firstUpdateId_ = doc_["U"].get<long long int>().value();
+        auto volume = double{};
+        res = (*it).get_double_in_string().get(volume);
+
+        bids_.push_back({priceInt, volume});
     }
-    return firstUpdateId_;
-}
 
-auto OrderBookWebSocketEvent::getLastUpdateId() -> long long int {
-    if (lastUpdateId_ == -1) {
-        this->getFirstUpdateId();
-        lastUpdateId_ = doc_["u"].get<long long int>().value();
+    for (auto elem : doc["a"]) {
+        auto it = elem.begin();
+        auto priceDouble = double{};
+        auto res = (*it).get_double_in_string().get(priceDouble);
+
+        auto priceInt = static_cast<int>(priceDouble * 100);
+
+        ++it;
+
+        auto volume = double{};
+        res = (*it).get_double_in_string().get(volume);
+
+        asks_.push_back({priceInt, volume});
+
     }
-    return lastUpdateId_;
+
+    lastUpdateId_ = doc["u"].get<long long int>().value();
 }
 
 }

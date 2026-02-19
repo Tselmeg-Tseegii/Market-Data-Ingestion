@@ -75,3 +75,15 @@ starting live model
 starting live model
 starting live model
 starting live model
+starting live model
+prediction: (1771476660, NEUTRAL, 0.68)
+prediction: (1771476960, NEUTRAL, 0.72)
+prediction: (1771477260, LONG, 0.38)
+prediction: (1771477560, LONG, 0.41)
+prediction: (1771477860, LONG, 0.43)
+prediction: (1771478160, LONG, 0.41)
+prediction: (1771478460, LONG, 0.40)
+prediction: (1771478760, LONG, 0.39)
+prediction: (1771479060, LONG, 0.38)
+prediction: (1771479360, LONG, 0.39)
+prediction: (1771479660, LONG, 0.41)

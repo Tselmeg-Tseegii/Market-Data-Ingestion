@@ -4,7 +4,6 @@
 
 #include "tradeVolume/tradeVolumeContainer.hpp"
 #include "core/eventQueue.hpp"
-#include "core/rawEvent.hpp"
 
 namespace MarketData {
 

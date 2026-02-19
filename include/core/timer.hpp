@@ -20,7 +20,9 @@ public:
 
     auto getDuration() -> double;
 
-    auto now() ->  std::chrono::time_point<std::chrono::high_resolution_clock>;
+    auto now() -> std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+    auto printNow() -> void;
 };
 
 }

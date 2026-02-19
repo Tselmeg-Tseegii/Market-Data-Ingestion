@@ -31,4 +31,11 @@ auto Timer::now() -> std::chrono::time_point<std::chrono::high_resolution_clock>
     return std::chrono::high_resolution_clock::now();
 }
 
+auto Timer::printNow() -> void {
+    auto currTime = std::chrono::high_resolution_clock::now();
+    auto currTimeNano = std::chrono::time_point_cast<std::chrono::nanoseconds>(currTime).time_since_epoch().count();
+
+    std::cout << currTimeNano << std::endl;
+}
+
 }

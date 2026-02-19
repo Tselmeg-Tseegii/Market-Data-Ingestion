@@ -1,13 +1,16 @@
 #include "tradeVolume/tradeVolumeContainer.hpp"
-#include "core/rawEvent.hpp"
 #include "external/simdjson/simdjson.h"
 #include "tradeVolume/tradeVolumeWebSocketEvent.hpp"
+#include "core/timer.hpp"
 
 namespace MarketData {
 
 auto TradeVolumeContainer::updateFromEvent(TradeVolumeWebSocketEvent& event) -> void {
     tradeVolume_[event.price_] += event.volume_;
 
+
+    auto timer = Timer{};
+    timer.printNow();
     // event.lifeTime_.stop();
 }
 

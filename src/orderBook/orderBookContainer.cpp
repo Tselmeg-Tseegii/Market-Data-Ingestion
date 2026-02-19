@@ -70,45 +70,25 @@ auto OrderBookContainer::setOrderBrookFromJson(nlohmann::json& data) -> void {
 }
 
 auto OrderBookContainer::updateOrderBookFromEvent(OrderBookWebSocketEvent& currEvent) -> void {
-    for (auto elem : currEvent.doc_["b"]) {
-        auto it = elem.begin();
-        auto priceDouble = double{};
-        auto res = (*it).get_double_in_string().get(priceDouble);
+    auto lock = std::lock_guard{mtx_};
 
-        auto priceInt = static_cast<int>(priceDouble * 100);
-
-        ++it;
-
-        auto volume = double{};
-        res = (*it).get_double_in_string().get(volume);
-
-        if (volume != 0) {
-            bids_.insert_or_assign(priceInt, volume);
+    for (auto& priceVolume : currEvent.asks_) {
+        if (priceVolume.volume_ != 0) {
+            asks_[priceVolume.price_] = priceVolume.volume_;
         } else {
-            bids_.erase(priceInt);
+            asks_.erase(priceVolume.price_);
         }
     }
 
-    for (auto elem : currEvent.doc_["a"]) {
-        auto it = elem.begin();
-        auto priceDouble = double{};
-        auto res = (*it).get_double_in_string().get(priceDouble);
-
-        auto priceInt = static_cast<int>(priceDouble * 100);
-
-        ++it;
-
-        auto volume = double{};
-        res = (*it).get_double_in_string().get(volume);
-
-        if (volume != 0) {
-            bids_.insert_or_assign(priceInt, volume);
+    for (auto& priceVolume : currEvent.bids_) {
+        if (priceVolume.volume_ != 0) {
+            bids_[priceVolume.price_] = priceVolume.volume_;
         } else {
-            bids_.erase(priceInt);
+            bids_.erase(priceVolume.price_);
         }
     }
 
-    lastUpdateId_ = currEvent.getLastUpdateId();
+    lastUpdateId_ = currEvent.lastUpdateId_;
 }
 
 }

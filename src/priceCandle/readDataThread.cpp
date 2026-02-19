@@ -18,7 +18,7 @@ ReadDataThread::ReadDataThread(PriceCandleContainer& container)
 
     apiRequestEndPoint_ = {request + "?symbol=" + symbol + "&interval=" + interval + "&apikey=" + MY_API_KEY};
     request = "/time_series";
-    auto outputSize = std::string{"50"};
+    auto outputSize = std::string{"55"};
     auto order = std::string{"asc"};
     apiPastRequestEndPoint_ = {request + "?symbol=" + symbol + "&interval=" + interval + "&outputsize=" + outputSize + "&order=" + order + "&apikey=" + MY_API_KEY};
     
@@ -37,7 +37,7 @@ auto ReadDataThread::stopThread() -> void {
 auto ReadDataThread::getStartUpData() -> void {
     auto latestCandle = getOneCandleRequest();
     auto latestOneMinTimeStamp = latestCandle.timeStamp;
-    auto currTimeStamp = latestOneMinTimeStamp - 50 * 60;
+    auto currTimeStamp = latestOneMinTimeStamp - 55 * 60;
 
     auto res = httplib::Result{apiClient_.Get(apiPastRequestEndPoint_)};
     

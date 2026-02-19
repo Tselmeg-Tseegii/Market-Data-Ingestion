@@ -1,28 +1,21 @@
 #pragma once
 
-#include <memory>
-#include "core/rawEvent.hpp"
+#include <vector>
 #include "external/simdjson/simdjson.h"
+#include "core/marketDataTypes.hpp"
 
 namespace MarketData {
 
-struct OrderBookWebSocketEvent: RawEvent {
-    std::unique_ptr<simdjson::ondemand::parser> parser_;
-    simdjson::ondemand::document doc_;
-    bool parserIsActive_;
-
+struct OrderBookWebSocketEvent {
     long long int firstUpdateId_ {-1};
     long long int lastUpdateId_ {-1};
 
+    std::vector<IntPriceVolume> asks_;
+    std::vector<IntPriceVolume> bids_;
+
     OrderBookWebSocketEvent() = default;
 
-    OrderBookWebSocketEvent(boost::beast::flat_buffer&& data);
-
-    auto initialiseParser() -> void;
-
-    auto getFirstUpdateId() -> long long int;
-
-    auto getLastUpdateId() -> long long int;
+    OrderBookWebSocketEvent(simdjson::ondemand::document& doc);
 };
 
 }

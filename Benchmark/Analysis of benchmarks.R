@@ -32,11 +32,14 @@ newTVMap <- scan("newImplem/tradeVolumeLifeTimeMap.txt")
 TVUpdaterWaitWithoutConsume <- scan("newImplem/tradeVolumeUpdaterWaitForWithoutConsume.txt")
 TVUpdaterWaitWithConsume <- scan("newImplem/tradeVolumeUpdaterWaitForWithConsume.txt")
 
+TVAbsTimeOfUpdate <- scan("newImplem/tradeVolumeUpdateFromEventAbsTime.txt")
+TVAbsTimeOfUpdateTwo <- scan("newImplem/tradeVolumeUpdateFromEventAbsTimeTwo.txt")
+
 par(mfrow = c(2, 2))
 
 compare <- function(old, new) {
-  old <- old[old <= 50000000]
-  new <- new[new <= 50000000]
+  old <- old[old <= 40000]
+  new <- new[new <= 40000]
   
   cat("OLD\n")
   cat("Mean:  ", mean(old), "\n")
@@ -52,10 +55,10 @@ compare <- function(old, new) {
   maxNew = max(new)
   maxAll = max(maxOld, maxNew)
   
-  hist(old, breaks = 1000, xlim = c(0, 50000000))
-  plot(old, type = "l")
-  hist(new, breaks = 1000, xlim = c(0, 50000000))
-  plot(new, type = "l")
+  hist(old, breaks = 1000, xlim = c(0, 40000))
+  plot(old, type = "p")
+  hist(new, breaks = 1000, xlim = c(0, 40000))
+  plot(new, type = "p")
 }
 
 compare(oldOBUpdateEvent, newOBUpdateEvent)
@@ -67,7 +70,7 @@ compare(oldTVWebRead, newTVWebRead)
 compare(oldTVUpdateLoop, newTVUpdateLoop)
 
 compare(oldTVLifeTime, newTVLifeTime)
-compare(oldTVLifeTime, newNewTVLifeTime)
+compare(oldTVLifeTime, newNewTVLifeTimeFour)
 
 compare(newNewTVLifeTime, newNewTVLifeTimeTwo)
 compare(newTVMap, newNewTVLifeTimeFive)
@@ -78,3 +81,31 @@ compare(TVUpdaterWaitWithoutConsume, TVUpdaterWaitWithConsume)
 
 print(table(TVQueueLengthWithConsume))
 print(table(TVQueueLengthWithoutConsume))
+
+plot(TVAbsTimeOfUpdate)
+
+x <- 1:length(TVAbsTimeOfUpdate)
+
+lm(TVAbsTimeOfUpdate ~ x)
+
+plot(TVAbsTimeOfUpdateTwo)
+
+x2 <- 1:length(TVAbsTimeOfUpdateTwo)
+
+fit <- lm(TVAbsTimeOfUpdateTwo ~ x2)
+
+par(mfrow = c(1, 1))
+
+abline(fit, col = "red")
+
+
+timeBetween <- diff(TVAbsTimeOfUpdateTwo)
+
+compare(newNewTVLifeTimeFour, timeBetween)
+
+x3 <- 1:length(timeBetween)
+
+fit <- lm(timeBetween ~ x3)
+
+plot(timeBetween)
+abline(fit, col = "red")

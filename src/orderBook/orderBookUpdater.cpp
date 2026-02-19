@@ -19,6 +19,9 @@ auto OrderBookUpdater::stopUpdate() -> void {
 }
 
 auto OrderBookUpdater::continualUpdate() -> void {
+    auto client = httplib::Client{"https://api.binance.com"};
+    auto path = std::string{"/api/v3/depth?symbol=BTCUSDT&limit=5000"};
+
 restart_update_orderbook_process:
     auto eventBufferLock = std::unique_lock<std::mutex>{eventsQueue_.getMtx()};
     auto& eventBufferCv = eventsQueue_.getCv();
@@ -32,15 +35,10 @@ restart_update_orderbook_process:
         return;
     }
 
-    auto& firstEvent = eventsQueue_.getFront();
-    auto veryFirstUpdateId = firstEvent.getFirstUpdateId();
+    auto veryFirstUpdateId = eventsQueue_.getFront().firstUpdateId_;
     
-    auto client = httplib::Client{"https://api.binance.com"};
-    auto path = std::string{"/api/v3/depth?symbol=BTCUSDT&limit=5000"};
-
     long long int snapshotLastUpdateId = -1;
     auto snapshotJson = nlohmann::json{};
-
     while (snapshotLastUpdateId == -1 || snapshotLastUpdateId < veryFirstUpdateId) {
         auto res = httplib::Result{client.Get(path)};
         if (res->status != 200) {
@@ -54,8 +52,7 @@ restart_update_orderbook_process:
     eventsQueue_.spliceTo(currList);
     auto& currListData = currList.getData();
     for (auto it {currListData.begin()}; it != currListData.end(); ) {
-        auto currLastUpdateId = it->getLastUpdateId();
-        if (currLastUpdateId <= snapshotLastUpdateId) {
+        if (it->lastUpdateId_ <= snapshotLastUpdateId) {
             it = currListData.erase(it);
         } else {
             it++;
@@ -63,19 +60,6 @@ restart_update_orderbook_process:
     }
 
     container_.setOrderBrookFromJson(snapshotJson);
-
-    for (auto& currEvent : currListData) {
-        auto currOrderBookLastUpdateId = container_.getLastUpdateId();
-
-        if (currEvent.getFirstUpdateId() > (currOrderBookLastUpdateId + 1)) {
-            container_.clearOrderBook();
-            eventsQueue_.clear();
-
-            goto restart_update_orderbook_process;
-        }
-        
-        container_.updateOrderBookFromEvent(currEvent);
-    }
     
     while (true) {
         auto currList = EventQueue<OrderBookWebSocketEvent>{};
@@ -95,11 +79,11 @@ restart_update_orderbook_process:
         for (auto& currEvent : currList.getData()) {
             auto currOrderBookLastUpdateId = container_.getLastUpdateId();
 
-            if (currEvent.getLastUpdateId() < currOrderBookLastUpdateId) {
+            if (currEvent.firstUpdateId_ < currOrderBookLastUpdateId) {
                 continue;
             }
 
-            if (currEvent.getFirstUpdateId() > (currOrderBookLastUpdateId + 1)) {
+            if (currEvent.firstUpdateId_ > (currOrderBookLastUpdateId + 1)) {
                 container_.clearOrderBook();
                 eventsQueue_.clear();
 
