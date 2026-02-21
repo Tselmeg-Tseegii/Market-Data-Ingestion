@@ -1,8 +1,8 @@
 #pragma once
 
-#include "core/marketDataTypes.hpp"
+#include "shared/marketDataTypes.hpp"
 #include "external/simdjson/simdjson.h"
-#include "core/timer.hpp"
+#include "shared/timer.hpp"
 
 namespace MarketData {
 

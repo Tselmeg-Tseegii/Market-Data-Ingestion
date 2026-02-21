@@ -2,7 +2,7 @@
 
 #include <vector>
 #include "external/simdjson/simdjson.h"
-#include "core/marketDataTypes.hpp"
+#include "shared/marketDataTypes.hpp"
 
 namespace MarketData {
 

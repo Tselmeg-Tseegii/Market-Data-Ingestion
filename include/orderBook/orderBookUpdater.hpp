@@ -4,7 +4,7 @@
 #include <atomic>
 
 #include "orderBook/orderBookContainer.hpp"
-#include "core/eventQueue.hpp"
+#include "shared/eventQueue.hpp"
 #include "external/httplib.h"
 
 namespace MarketData {

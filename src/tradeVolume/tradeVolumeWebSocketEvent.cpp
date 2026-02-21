@@ -3,8 +3,8 @@
 namespace MarketData {
 
 TradeVolumeWebSocketEvent::TradeVolumeWebSocketEvent(simdjson::ondemand::document& doc) {
-    this->intPrice_ = static_cast<long long int>(std::round(doc["p"].get_double_in_string().value() * 100000000));
-    this->intVolume_ = static_cast<long long int>(std::round(doc["q"].get_double_in_string().value() * 100000000));
+    this->intPrice = static_cast<long long int>(std::round(doc["p"].get_double_in_string().value() * 100000000));
+    this->intVolume = static_cast<long long int>(std::round(doc["q"].get_double_in_string().value() * 100000000));
 }
 
 }

@@ -5,7 +5,7 @@
 #include <mutex>
 #include <iostream>
 
-#include "core/marketDataTypes.hpp"
+#include "shared/marketDataTypes.hpp"
 #include "orderBook/orderBookWebSocketEvent.hpp"
 #include "external/nlohmann/json.hpp"
 

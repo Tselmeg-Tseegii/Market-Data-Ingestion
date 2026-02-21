@@ -1,7 +1,7 @@
 #include <cstdlib>
 
 #include "priceCandle/readDataThread.hpp"
-#include "core/timer.hpp"
+#include "shared/timer.hpp"
 #include "external/nlohmann/json.hpp"
 
 namespace MarketData {

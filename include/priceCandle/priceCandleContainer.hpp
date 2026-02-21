@@ -5,7 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "core/marketDataTypes.hpp"
+#include "shared/marketDataTypes.hpp"
 
 namespace MarketData {
 

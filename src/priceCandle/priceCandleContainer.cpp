@@ -1,7 +1,7 @@
 #include <fstream>
 
 #include "priceCandle/priceCandleContainer.hpp"
-#include "core/marketDataTypes.hpp"
+#include "shared/marketDataTypes.hpp"
 
 namespace MarketData {
 

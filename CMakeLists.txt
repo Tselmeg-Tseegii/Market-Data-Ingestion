@@ -19,8 +19,8 @@ include_directories(
 set(SOURCES
     src/main.cpp
     
-    src/core/timer.cpp
-    src/core/marketDataType.cpp
+    src/shared/timer.cpp
+    src/shared/marketDataType.cpp
     
     src/orderBook/orderBookWebSocketEvent.cpp
     src/orderBook/orderBookContainer.cpp

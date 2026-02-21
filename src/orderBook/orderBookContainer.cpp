@@ -1,5 +1,5 @@
 #include "orderBook/orderBookContainer.hpp"
-#include "core/marketDataTypes.hpp"
+#include "shared/marketDataTypes.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -75,30 +75,20 @@ auto OrderBookContainer::setOrderBrookFromJson(nlohmann::json& data) -> void {
 auto OrderBookContainer::updateOrderBookFromEvent(OrderBookWebSocketEvent& currEvent) -> void {
     auto lock = std::lock_guard{mtx_};
 
-    // std::cout << "Updated Event--------------------------------------\n";
-    // std::cout << "ask\n";
-    // for (auto& elem : currEvent.asks_) {
-    //     std::cout << elem << '\n';
-    // }
-    // std::cout << "bid\n";
-    // for (auto& elem : currEvent.bids_) {
-    //     std::cout << elem << '\n';
-    // }
-
     for (auto& priceVolume : currEvent.asks_) {
-        if (priceVolume.intVolume_ > 0) {
-            this->asks_[priceVolume.intPrice_] = priceVolume.intVolume_;
+        if (priceVolume.intVolume > 0) {
+            this->asks_[priceVolume.intPrice] = priceVolume.intVolume;
         } else {
-            this->asks_.erase(priceVolume.intPrice_);
+            this->asks_.erase(priceVolume.intPrice);
         }
     }
 
     for (auto& priceVolume : currEvent.bids_) {
-        if (priceVolume.intVolume_ > 0) {
-            this->bids_[priceVolume.intPrice_] = priceVolume.intVolume_;
+        if (priceVolume.intVolume > 0) {
+            this->bids_[priceVolume.intPrice] = priceVolume.intVolume;
         } else {
     
-            this->bids_.erase(priceVolume.intPrice_);
+            this->bids_.erase(priceVolume.intPrice);
         }
     }
 

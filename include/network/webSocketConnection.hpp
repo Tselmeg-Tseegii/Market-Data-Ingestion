@@ -8,7 +8,7 @@
 #include <boost/beast.hpp>
 #include <boost/beast/ssl.hpp>
 
-#include "core/eventQueue.hpp"
+#include "shared/eventQueue.hpp"
 #include "external/simdjson/simdjson.h"
 
 namespace MarketData {

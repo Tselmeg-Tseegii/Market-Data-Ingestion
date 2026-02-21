@@ -66,7 +66,6 @@ private:
             auto& data = container_.getData();
 
             while (data.size() > lastSentDataIndex) {
-                std::cout << "send " << data[lastSentDataIndex] << '\n';
                 pipeToPython_ << data[lastSentDataIndex] << std::endl;
                 lastSentDataIndex++;
             }
@@ -84,7 +83,7 @@ private:
 
         auto pythonResponse = std::string{};
         while (std::getline(pipeFromPython_, pythonResponse)) {
-            std::cout << "got " << pythonResponse << '\n';
+            std::cout << "got from python: " << pythonResponse << '\n';
             prefictionSaveFile << pythonResponse << std::endl;
         }
         pipeFromPython_.close();

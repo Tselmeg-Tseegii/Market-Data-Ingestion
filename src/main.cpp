@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "core/marketDataTypes.hpp"
+#include "shared/marketDataTypes.hpp"
 
 #include "network/webSocketConnection.hpp"
 #include "tradeVolume/tradeVolumeContainer.hpp"
@@ -13,7 +13,7 @@
 
 #include "priceCandle/priceCandleContainer.hpp"
 #include "priceCandle/readDataThread.hpp"
-#include "core/managePythonProcess.hpp"
+#include "shared/managePythonProcess.hpp"
 
 using namespace MarketData;
 
@@ -50,18 +50,6 @@ int main() {
     };
     auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
 
-    // std::cout << "sleeping for 4 seconds---------------------------------------------" << std::endl;
-
-    // std::this_thread::sleep_for(std::chrono::milliseconds(4000));
-
-    // orderBook.print();
-
-    // std::cout << "sleeping for 4 seconds---------------------------------------------" << std::endl;
-
-    // std::this_thread::sleep_for(std::chrono::milliseconds(4000));
-
-    // orderBook.print();
-
     int stop{};
     std::cin >> stop;
     if (stop == -1) {
@@ -74,6 +62,7 @@ int main() {
         orderBookWebSocket.stopThread();
         orderBookUpdater.stopUpdate();
     }
+    // orderBook.print();
 
     // btcVolume.print();
 }

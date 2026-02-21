@@ -3,7 +3,7 @@
 #include <thread>
 
 #include "tradeVolume/tradeVolumeContainer.hpp"
-#include "core/eventQueue.hpp"
+#include "shared/eventQueue.hpp"
 
 namespace MarketData {
 

@@ -6,8 +6,8 @@
 namespace MarketData {
 
 struct IntPriceVolume {
-    long long int intPrice_;
-    long long int intVolume_;
+    long long int intPrice;
+    long long int intVolume;
 
     IntPriceVolume() = default;
     IntPriceVolume(long long int price, long long int volume);
