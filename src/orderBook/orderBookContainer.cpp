@@ -1,4 +1,7 @@
 #include "orderBook/orderBookContainer.hpp"
+#include "core/marketDataTypes.hpp"
+#include <cmath>
+#include <iostream>
 
 namespace MarketData {
 
@@ -56,14 +59,14 @@ auto OrderBookContainer::setOrderBrookFromJson(nlohmann::json& data) -> void {
     lastUpdateId_ = data["lastUpdateId"].get<long long int>();
 
     for (auto& elem : data["bids"]) {
-        auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()) * 100);
-        auto volume = std::stod(elem[1].get<std::string>());
+        auto priceInt = static_cast<long long int>(std::round(std::stod(elem[0].get<std::string>()) * 100000000));
+        auto volume = static_cast<long long int>(std::round(std::stod(elem[1].get<std::string>()) * 100000000));
 
         bids_.emplace(priceInt, volume);
     }
     for (auto& elem : data["asks"]) {
-        auto priceInt = static_cast<int>(std::stod(elem[0].get<std::string>()) * 100);
-        auto volume = std::stod(elem[1].get<std::string>());
+        auto priceInt = static_cast<long long int>(std::round(std::stod(elem[0].get<std::string>()) * 100000000));
+        auto volume = static_cast<long long int>(std::round(std::stod(elem[1].get<std::string>()) * 100000000));
 
         asks_.emplace(priceInt, volume);
     }
@@ -72,23 +75,34 @@ auto OrderBookContainer::setOrderBrookFromJson(nlohmann::json& data) -> void {
 auto OrderBookContainer::updateOrderBookFromEvent(OrderBookWebSocketEvent& currEvent) -> void {
     auto lock = std::lock_guard{mtx_};
 
+    // std::cout << "Updated Event--------------------------------------\n";
+    // std::cout << "ask\n";
+    // for (auto& elem : currEvent.asks_) {
+    //     std::cout << elem << '\n';
+    // }
+    // std::cout << "bid\n";
+    // for (auto& elem : currEvent.bids_) {
+    //     std::cout << elem << '\n';
+    // }
+
     for (auto& priceVolume : currEvent.asks_) {
-        if (priceVolume.volume_ != 0) {
-            asks_[priceVolume.price_] = priceVolume.volume_;
+        if (priceVolume.intVolume_ > 0) {
+            this->asks_[priceVolume.intPrice_] = priceVolume.intVolume_;
         } else {
-            asks_.erase(priceVolume.price_);
+            this->asks_.erase(priceVolume.intPrice_);
         }
     }
 
     for (auto& priceVolume : currEvent.bids_) {
-        if (priceVolume.volume_ != 0) {
-            bids_[priceVolume.price_] = priceVolume.volume_;
+        if (priceVolume.intVolume_ > 0) {
+            this->bids_[priceVolume.intPrice_] = priceVolume.intVolume_;
         } else {
-            bids_.erase(priceVolume.price_);
+    
+            this->bids_.erase(priceVolume.intPrice_);
         }
     }
 
-    lastUpdateId_ = currEvent.lastUpdateId_;
+    this->lastUpdateId_ = currEvent.lastUpdateId_;
 }
 
 }

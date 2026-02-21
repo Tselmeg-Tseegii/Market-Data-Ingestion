@@ -41,16 +41,18 @@ restart_update_orderbook_process:
     auto snapshotJson = nlohmann::json{};
     while (snapshotLastUpdateId == -1 || snapshotLastUpdateId < veryFirstUpdateId) {
         auto res = httplib::Result{client.Get(path)};
+
         if (res->status != 200) {
             std::cout << "error in result\n";
         }
         snapshotJson = nlohmann::json::parse(res->body);
-        snapshotLastUpdateId = snapshotJson["lastUpdateId"].get<long long int>();
+        
+        snapshotLastUpdateId = snapshotJson["lastUpdateId"].get<long long int>();  
     }
 
-    auto currList = EventQueue<OrderBookWebSocketEvent>{};
-    eventsQueue_.spliceTo(currList);
-    auto& currListData = currList.getData();
+    
+    eventBufferLock.lock();
+    auto& currListData = eventsQueue_.getData();
     for (auto it {currListData.begin()}; it != currListData.end(); ) {
         if (it->lastUpdateId_ <= snapshotLastUpdateId) {
             it = currListData.erase(it);
@@ -58,6 +60,7 @@ restart_update_orderbook_process:
             it++;
         }
     }
+    eventBufferLock.unlock();
 
     container_.setOrderBrookFromJson(snapshotJson);
     

@@ -13,7 +13,7 @@ namespace MarketData {
 class TradeVolumeContainer {
 private:
     std::mutex mtx_;
-    std::map<int, double> tradeVolume_;
+    std::map<int, int> tradeVolume_;
 public:
     auto updateFromEvent(TradeVolumeWebSocketEvent& event) -> void;
 

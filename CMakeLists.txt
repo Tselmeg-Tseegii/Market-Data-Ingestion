@@ -22,7 +22,7 @@ set(SOURCES
     src/core/timer.cpp
     src/core/marketDataType.cpp
     
-    src/orderBook/orderBookEvent.cpp
+    src/orderBook/orderBookWebSocketEvent.cpp
     src/orderBook/orderBookContainer.cpp
     src/orderBook/orderBookUpdater.cpp
     

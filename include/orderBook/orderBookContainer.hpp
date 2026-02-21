@@ -14,8 +14,8 @@ namespace MarketData {
 class OrderBookContainer {
 private:
     long long int lastUpdateId_ {-1};
-    std::map<int, double> asks_;
-    std::map<int, double> bids_;
+    std::map<long long int, long long int> asks_;
+    std::map<long long int, long long int> bids_;
     std::mutex mtx_;
 
 public:

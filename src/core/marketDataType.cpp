@@ -6,19 +6,23 @@
 
 namespace MarketData {
 
-IntPriceVolume::IntPriceVolume(int price, double volume)
-    : price_ {price}
-    , volume_ {volume}
+IntPriceVolume::IntPriceVolume(long long int price, long long int volume)
+    : intPrice_ {price}
+    , intVolume_ {volume}
 {}
 
 auto IntPriceVolume::operator<(const IntPriceVolume& other) -> bool {
-    return price_ < other.price_;
+    return this->intPrice_ < other.intPrice_;
 }
 
-auto IntPriceVolume::operator<(int priceKey) -> bool {
-    return price_ < priceKey;
+auto IntPriceVolume::operator<(long long int priceKey) -> bool {
+    return this->intPrice_ < priceKey;
 }
 
+auto operator<<(std::ostream& out, const IntPriceVolume& priceVol) -> std::ostream& {
+    out << priceVol.intPrice_ << " - " << priceVol.intVolume_;
+    return out;
+}
 
 PriceCandle::PriceCandle(double open, double high, double low, double close, int time) 
     : candleOpen {open}
@@ -29,13 +33,13 @@ PriceCandle::PriceCandle(double open, double high, double low, double close, int
 {}
 
 
-auto FlatContainer::insertOrUpdate(int price, double volume) -> void {
-    auto it = std::lower_bound(data_.begin(), data_.end(), price, [](const IntPriceVolume& elem, int priceKey) {
-        return elem.price_ < priceKey;
+auto FlatContainer::insertOrUpdate(long long int price, long long int volume) -> void {
+    auto it = std::lower_bound(data_.begin(), data_.end(), price, [](const IntPriceVolume& elem, long long int priceKey) {
+        return elem.intPrice_ < priceKey;
     });
 
-    if (it != data_.end() && it->price_ == price) {
-        (it->volume_) += volume;
+    if (it != data_.end() && it->intPrice_ == price) {
+        (it->intVolume_) += volume;
     } else {
         data_.insert(it, {price, volume});
     }
@@ -43,7 +47,7 @@ auto FlatContainer::insertOrUpdate(int price, double volume) -> void {
 
 auto FlatContainer::print() -> void {
     for (auto& curr : data_) {
-        std::cout << '(' << curr.price_ << ", " << curr.volume_ << ")\n";
+        std::cout << '(' << curr.intPrice_ << ", " << curr.intVolume_ << ")\n";
     }
 }
 

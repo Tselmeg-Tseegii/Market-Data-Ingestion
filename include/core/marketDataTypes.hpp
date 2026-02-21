@@ -1,20 +1,23 @@
 #pragma once
 
 #include <vector>
+#include <iostream>
 
 namespace MarketData {
 
 struct IntPriceVolume {
-    int price_;
-    double volume_;
+    long long int intPrice_;
+    long long int intVolume_;
 
     IntPriceVolume() = default;
-    IntPriceVolume(int price, double volume);
+    IntPriceVolume(long long int price, long long int volume);
 
     auto operator<(const IntPriceVolume& other) -> bool;
 
-    auto operator<(int priceKey) -> bool;
+    auto operator<(long long int priceKey) -> bool;
 };
+
+auto operator<<(std::ostream& out, const IntPriceVolume& priceVol) -> std::ostream&;
 
 struct PriceCandle {
     double candleOpen {-1};
@@ -31,7 +34,7 @@ private:
     std::vector<IntPriceVolume> data_;
 
 public:
-    auto insertOrUpdate(int price, double volume) -> void;
+    auto insertOrUpdate(long long int price, long long int volume) -> void;
 
     auto print() -> void;
 };
