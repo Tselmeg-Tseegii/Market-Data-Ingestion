@@ -3,6 +3,8 @@
 #include "shared/marketDataTypes.hpp"
 
 #include "network/webSocketConnection.hpp"
+#include "network/dashboardServer.hpp"
+
 #include "tradeVolume/tradeVolumeContainer.hpp"
 #include "tradeVolume/tradeVolumeUpdater.hpp"
 #include "tradeVolume/tradeVolumeWebSocketEvent.hpp"
