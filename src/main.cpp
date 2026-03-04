@@ -21,25 +21,25 @@ using namespace MarketData;
 
 int main() {
     
-    // auto goldPrices = PriceCandleContainer{};
+    auto goldPrices = PriceCandleContainer{};
     
-    // auto readThread = ReadDataThread{goldPrices};
+    auto readThread = ReadDataThread{goldPrices};
 
-    // auto manageDecisionPython = ManagePythonProcess{
-    //     goldPrices, 
-    //     "pythonScript/tradeDecision.py",
-    //     "data/predictionData.txt"
-    // };
+    auto manageDecisionPython = ManagePythonProcess{
+        goldPrices, 
+        "pythonScript/tradeDecision.py",
+        "data/predictionData.txt"
+    };
 
-    // auto btcVolume = TradeVolumeContainer{};
-    // auto btcVolumeEventQueue = EventQueue<TradeVolumeWebSocketEvent>{};
-    // auto btcVolumeEventWebScoket = WebSocketConnection<TradeVolumeWebSocketEvent>{
-    //     btcVolumeEventQueue,
-    //     "stream.binance.com",
-    //     "/ws/btcusdt@trade",
-    //     "9443"
-    // };
-    // auto btcVolumeUpdater = TradeVolumeUpdater{btcVolume, btcVolumeEventQueue};
+    auto btcVolume = TradeVolumeContainer{};
+    auto btcVolumeEventQueue = EventQueue<TradeVolumeWebSocketEvent>{};
+    auto btcVolumeEventWebScoket = WebSocketConnection<TradeVolumeWebSocketEvent>{
+        btcVolumeEventQueue,
+        "stream.binance.com",
+        "/ws/btcusdt@trade",
+        "9443"
+    };
+    auto btcVolumeUpdater = TradeVolumeUpdater{btcVolume, btcVolumeEventQueue};
 
 
     auto orderBook = OrderBookContainer{};
@@ -51,6 +51,9 @@ int main() {
         "9443"
     };
     auto orderBookUpdater = OrderBookUpdater{orderBook, orderBookEventQueue};
+
+    auto dashBoard = DashboardServer{&orderBook};
+    dashBoard.start(8080);
 
     int stop{};
     std::cin >> stop;

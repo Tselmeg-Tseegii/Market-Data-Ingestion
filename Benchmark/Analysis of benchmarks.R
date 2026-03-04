@@ -35,6 +35,8 @@ TVUpdaterWaitWithConsume <- scan("newImplem/tradeVolumeUpdaterWaitForWithConsume
 TVAbsTimeOfUpdate <- scan("newImplem/tradeVolumeUpdateFromEventAbsTime.txt")
 TVAbsTimeOfUpdateTwo <- scan("newImplem/tradeVolumeUpdateFromEventAbsTimeTwo.txt")
 
+rawTVConnection <- scan("rawWebSocketInputTradeVolume.txt")
+
 par(mfrow = c(2, 2))
 
 compare <- function(old, new) {
@@ -73,7 +75,7 @@ compare(oldTVLifeTime, newTVLifeTime)
 compare(oldTVLifeTime, newNewTVLifeTimeFour)
 
 compare(newNewTVLifeTime, newNewTVLifeTimeTwo)
-compare(newTVMap, newNewTVLifeTimeFive)
+compare(rawTVConnection, newNewTVLifeTimeFive)
 
 compare(TVQueueLengthWithoutConsume, TVQueueLengthWithConsume)
 

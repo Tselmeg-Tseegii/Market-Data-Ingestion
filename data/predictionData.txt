@@ -87,3 +87,6 @@ prediction: (1771478760, LONG, 0.39)
 prediction: (1771479060, LONG, 0.38)
 prediction: (1771479360, LONG, 0.39)
 prediction: (1771479660, LONG, 0.41)
+starting live model
+prediction: (1771754100, LONG, 0.41)
+prediction: (1771754460, LONG, 0.43)
