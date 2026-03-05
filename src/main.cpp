@@ -65,10 +65,10 @@ int main() {
     // --- http server -------------------------------------------------------
     httplib::Server svr;
     // allow CORS so that the dashboard can be opened via file:// or another host
-    svr.set_default_headers([](httplib::Response& res){
-        res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type");
+    svr.set_default_headers({
+        {"Access-Control-Allow-Origin", "*"},
+        {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
+        {"Access-Control-Allow-Headers", "Content-Type"}
     });
 
     svr.Get("/orderbook", [&](const httplib::Request&, httplib::Response& res) {
