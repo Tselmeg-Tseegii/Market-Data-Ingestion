@@ -104,6 +104,7 @@ private:
                     auto temp = PriceCandle{latestIntPrice};
                     std::cout << "python send: " << temp << '\n';
                     pipeToPython_ << temp << std::endl;
+                    latestIntPrice.clear();  // reset after sending so new scripts can start fresh
                 }
             }
         }

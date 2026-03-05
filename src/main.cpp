@@ -73,12 +73,12 @@ int main() {
 
     svr.Get("/orderbook", [&](const httplib::Request&, httplib::Response& res) {
         std::cout << "HTTP GET /orderbook\n";
-        res.set_content(Web::orderBookToJson(orderBook, 20).dump(), "application/json");
+        res.set_content(Web::orderBookToJson(orderBook, 10).dump(), "application/json");
     });
 
     svr.Get("/trades", [&](const httplib::Request&, httplib::Response& res) {
         std::cout << "HTTP GET /trades\n";
-        res.set_content(Web::recentTradesToJson(btcVolume, 100).dump(), "application/json");
+        res.set_content(Web::recentTradesToJson(btcVolume, 20).dump(), "application/json");
     });
 
     svr.Post("/runscript", [&](const httplib::Request& req, httplib::Response& res) {
