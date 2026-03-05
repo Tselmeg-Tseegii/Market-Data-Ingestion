@@ -1,6 +1,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <limits>
 
 #include "shared/timer.hpp"
 #include "shared/marketDataTypes.hpp"
@@ -34,7 +35,7 @@ PriceCandle::PriceCandle(double open, double high, double low, double close, int
 {}
 
 PriceCandle::PriceCandle(std::vector<IntPriceVolume>& latestTrades) {
-    long long int minPrice {};
+    long long int minPrice {std::numeric_limits<long long int>::max()};
     long long int maxPrice {};
     for (auto& curr : latestTrades) {
         if (curr.intPrice < minPrice) {
