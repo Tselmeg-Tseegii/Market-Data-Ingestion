@@ -85,6 +85,7 @@ private:
     auto readFromWebsocket() -> void {
         auto ioContext = boost::asio::io_context{};
         auto webSocket = connectWebsocket(ioContext, host_, path_, port_);
+    std::cout << "WebSocket connected to " << host_ << path_ << "\n";
 
         auto jsonParser = simdjson::ondemand::parser{};
         auto streamBuffer = boost::beast::flat_buffer{};
@@ -103,6 +104,8 @@ private:
             ).get(doc);
 
             auto event = Event{doc};
+
+            std::cout << "WebSocket event received" << std::endl;
 
             eventQueue_.pushAndNotify(event);
 

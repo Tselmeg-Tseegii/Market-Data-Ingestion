@@ -173,9 +173,13 @@ except KeyboardInterrupt:
         async function fetchData(url) {
             try {
                 const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`${response.status} ${response.statusText}`);
+                }
                 return await response.json();
             } catch (error) {
                 console.error('Error fetching data:', error);
+                showStatus(`Fetch failed: ${error.message}`, 'error');
                 return null;
             }
         }
@@ -183,9 +187,13 @@ except KeyboardInterrupt:
         async function fetchText(url) {
             try {
                 const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`${response.status} ${response.statusText}`);
+                }
                 return await response.text();
             } catch (error) {
                 console.error('Error fetching text:', error);
+                showStatus(`Fetch failed: ${error.message}`, 'error');
                 return '';
             }
         }

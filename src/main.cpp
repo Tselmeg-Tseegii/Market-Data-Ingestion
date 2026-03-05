@@ -64,16 +64,25 @@ int main() {
 
     // --- http server -------------------------------------------------------
     httplib::Server svr;
+    // allow CORS so that the dashboard can be opened via file:// or another host
+    svr.set_default_headers([](httplib::Response& res){
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type");
+    });
 
     svr.Get("/orderbook", [&](const httplib::Request&, httplib::Response& res) {
+        std::cout << "HTTP GET /orderbook\n";
         res.set_content(Web::orderBookToJson(orderBook, 20).dump(), "application/json");
     });
 
     svr.Get("/trades", [&](const httplib::Request&, httplib::Response& res) {
+        std::cout << "HTTP GET /trades\n";
         res.set_content(Web::recentTradesToJson(btcVolume, 100).dump(), "application/json");
     });
 
     svr.Post("/runscript", [&](const httplib::Request& req, httplib::Response& res) {
+        std::cout << "HTTP POST /runscript\n";
         try {
             // ensure pythonScript directory exists
             std::filesystem::create_directories("pythonScript");
@@ -95,6 +104,7 @@ int main() {
     });
 
     svr.Post("/stop", [&](const httplib::Request&, httplib::Response& res) {
+        std::cout << "HTTP POST /stop\n";
         if (manageDecisionPython) {
             manageDecisionPython->endProcess();
             manageDecisionPython.reset();
@@ -103,6 +113,7 @@ int main() {
     });
 
     svr.Get("/scriptOutput", [&](const httplib::Request&, httplib::Response& res) {
+        std::cout << "HTTP GET /scriptOutput\n";
         std::ifstream in("data/predictionData.txt");
         std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         res.set_content(content, "text/plain");
@@ -125,6 +136,7 @@ int main() {
 
     // allow external requests to shut down the server
     svr.Post("/shutdown", [&](const httplib::Request&, httplib::Response& res) {
+        std::cout << "HTTP POST /shutdown\n";
         res.set_content("shutting down", "text/plain");
         running = false;
         svr.stop();
