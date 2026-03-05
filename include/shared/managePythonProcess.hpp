@@ -4,12 +4,14 @@
 #include <thread>
 #include <boost/process.hpp>
 
+#include "shared/eventQueue.hpp"
+
 namespace MarketData {
 
-template<typename Container>
+template<typename Event>
 class ManagePythonProcess {
 private:
-    Container& container_;
+    EventQueue<Event>& eventQueue_;
     std::string predictionSaveFile_;
 
     boost::process::opstream pipeToPython_;
@@ -22,11 +24,11 @@ private:
 
 public:
     ManagePythonProcess(
-        Container& container,
+        EventQueue<Event>& queue,
         std::string pythonFile,
         std::string_view predictionSaveFile
     )
-        : container_ {container}
+        : eventQueue_ {queue}
         , predictionSaveFile_ {predictionSaveFile}
         , pipeToPython_ {}
         , pipeFromPython_ {}
@@ -53,27 +55,28 @@ public:
 
 private:
     auto sendDataToPython() -> void {
-        auto& cvContainer = container_.getCondVar();
-        auto lockContainer = std::unique_lock<std::mutex>{container_.getMutex()};
-        
-        auto lastSentDataIndex = std::size_t{0};
+        auto& eventQueueCv = eventQueue_.getCv();
+        auto eventQueueLock = std::unique_lock{eventQueue_.getMtx()};
+        eventQueueLock.unlock();
+
         while (true) {
-            cvContainer.wait(lockContainer, [this, &lastSentDataIndex]() {
-                return (container_.getData().size() > lastSentDataIndex)
-                        || !container_.willGetNewData();
+            auto currEvents = EventQueue<Event>{};
+
+            eventQueueLock.lock();
+            eventQueueCv.wait(eventQueueLock, [this] () {
+                return eventQueue_.IsNotEmptyFlag();
             });
+            
+            eventQueueLock.unlock();
 
-            auto& data = container_.getData();
+            eventQueue_.spliceTo(currEvents);
 
-            while (data.size() > lastSentDataIndex) {
-                pipeToPython_ << data[lastSentDataIndex] << std::endl;
-                lastSentDataIndex++;
+            for (auto& currEvent : currEvents.getData()) {
+                pipeToPython_ << currEvent << std::endl;
             }
 
-            if (!container_.willGetNewData()) {
-                break;
-            }
         }
+
         pipeToPython_ << "STOP" << std::endl;
         pipeToPython_.close();
     }
