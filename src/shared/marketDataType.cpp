@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
+#include "shared/timer.hpp"
 #include "shared/marketDataTypes.hpp"
 
 namespace MarketData {
@@ -31,6 +32,33 @@ PriceCandle::PriceCandle(double open, double high, double low, double close, int
     , candleClose {close}
     , timeStamp {time}
 {}
+
+PriceCandle::PriceCandle(std::vector<IntPriceVolume>& latestTrades) {
+    long long int minPrice {};
+    long long int maxPrice {};
+    for (auto& curr : latestTrades) {
+        if (curr.intPrice < minPrice) {
+            minPrice = curr.intPrice;
+        }
+
+        if (curr.intPrice > maxPrice) {
+            maxPrice = curr.intPrice;
+        }
+    }
+
+    candleOpen = latestTrades.front().intPrice / (double) 100000000;
+    candleHigh = maxPrice / (double) 100000000;
+    candleLow = minPrice / (double) 100000000;
+    candleClose = latestTrades.back().intPrice / (double) 100000000;
+
+    auto now = Timer{}.now();
+    
+    auto duration = now.time_since_epoch();
+
+    timeStamp = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+
+    latestTrades.clear();
+}
 
 
 auto FlatContainer::insertOrUpdate(long long int price, long long int volume) -> void {

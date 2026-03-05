@@ -34,8 +34,8 @@ class Candle:
         return self.timestamp_ == 0
 
 def addCandle(a: Candle, b: Candle) -> Candle:
-    if a.timestamp_ + CANDLE_TIME_INTERVAL != b.timestamp_:
-        return None
+    #if a.timestamp_ + CANDLE_TIME_INTERVAL != b.timestamp_:
+    #    return None
     
     newCandle = Candle()
     newCandle.timestamp_ = b.timestamp_

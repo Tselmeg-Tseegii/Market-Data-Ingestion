@@ -46,7 +46,7 @@ int main() {
 
     auto manageDecisionPython = ManagePythonProcess{
         btcVolumePythonQueue, 
-        "pythonScript/echoInput.py",
+        "pythonScript/tradeDecision.py",
         "data/predictionData.txt"
     };
 

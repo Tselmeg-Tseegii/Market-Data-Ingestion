@@ -9,8 +9,6 @@ auto TradeVolumeContainer::updateFromEvent(TradeVolumeWebSocketEvent& event) -> 
     {
         auto lock = std::lock_guard<std::mutex>{mtx_};
 
-        std::cout << event.intPrice << "\n";
-
         tradeVolumeMap_[event.intPrice] += event.intVolume;
         tradeVolumeSeq_.emplace_back(event.intPrice, event.intVolume);
 

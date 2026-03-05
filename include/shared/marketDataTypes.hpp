@@ -27,6 +27,8 @@ struct PriceCandle {
     int timeStamp {-1};
 
     PriceCandle(double open, double high, double low, double close, int time);
+
+    PriceCandle(std::vector<IntPriceVolume>& latestTrades);
 };
 
 class FlatContainer {

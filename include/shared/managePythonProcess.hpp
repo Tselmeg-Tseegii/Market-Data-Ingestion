@@ -64,6 +64,8 @@ private:
         auto eventQueueLock = std::unique_lock{eventQueue_.getMtx()};
         eventQueueLock.unlock();
 
+        auto latestIntPrice = std::vector<IntPriceVolume>{};
+
         while (!stopProcess_) {
             auto currEvents = EventQueue<Event>{};
 
@@ -80,9 +82,16 @@ private:
             eventQueue_.spliceTo(currEvents);
 
             for (auto& currEvent : currEvents.getData()) {
-                pipeToPython_ << currEvent << std::endl;
+                if (latestIntPrice.size() < 100) {
+                    latestIntPrice.push_back(currEvent);
+                }
+                
+                if (latestIntPrice.size() == 100) {
+                    auto temp = PriceCandle{latestIntPrice};
+                    std::cout << "python send: " << temp << '\n';
+                    pipeToPython_ << temp << std::endl;
+                }
             }
-
         }
 
         pipeToPython_ << "STOP" << std::endl;
