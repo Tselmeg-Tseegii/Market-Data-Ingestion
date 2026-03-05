@@ -20,7 +20,7 @@ private:
     std::thread sendDataThread_;
     std::thread getDataThread_;
 
-    boost::process::child pythonProcess_;
+    std::unique_ptr<boost::process::child> pythonProcess_;
 
     bool stopProcess_ {false};
 
@@ -36,14 +36,27 @@ public:
         , pipeFromPython_ {}
 
     {
-        pythonProcess_ = boost::process::child{
-            boost::process::search_path("python3.13"),
+        // try to find an available python interpreter
+        auto pythonExe = boost::process::search_path("python3.13");
+        if (pythonExe.empty()) {
+            pythonExe = boost::process::search_path("python3");
+        }
+        if (pythonExe.empty()) {
+            pythonExe = boost::process::search_path("python");
+        }
+        
+        if (pythonExe.empty()) {
+            throw std::runtime_error("Could not find Python interpreter (tried python3.13, python3, python)");
+        }
+
+        pythonProcess_ = std::make_unique<boost::process::child>(
+            pythonExe,
             "-u",
             pythonFile,
             boost::process::std_in < pipeToPython_,
             boost::process::std_out > pipeFromPython_, 
             boost::process::std_err > stderr
-        };
+        );
 
         sendDataThread_ = std::thread{&ManagePythonProcess::sendDataToPython, this};
         getDataThread_ = std::thread{&ManagePythonProcess::getDataFromPython, this};
@@ -55,10 +68,12 @@ public:
 
         if (sendDataThread_.joinable()) sendDataThread_.join();
         if (getDataThread_.joinable()) getDataThread_.join();
-        try {
-            pythonProcess_.wait();
-        } catch (const boost::process::process_error& e) {
-            std::cerr << "warning: error waiting for python process: " << e.what() << "\n";
+        if (pythonProcess_) {
+            try {
+                pythonProcess_->wait();
+            } catch (const boost::process::process_error& e) {
+                std::cerr << "warning: error waiting for python process: " << e.what() << "\n";
+            }
         }
     }
 
@@ -75,9 +90,11 @@ public:
             if (getDataThread_.joinable()) getDataThread_.join();
         } catch(...) {}
         try {
-            if (pythonProcess_.running()) {
-                pythonProcess_.terminate();
-                pythonProcess_.wait();
+            if (pythonProcess_ && pythonProcess_->running()) {
+                try {
+                    pythonProcess_->terminate();
+                    pythonProcess_->wait();
+                } catch(...) {}
             }
         } catch(...) {}
         try {
@@ -85,6 +102,10 @@ public:
         } catch(...) {}
         try {
             pipeFromPython_.close();
+        } catch(...) {}
+        // finally delete the child object safely
+        try {
+            pythonProcess_.reset();
         } catch(...) {}
     }
 
