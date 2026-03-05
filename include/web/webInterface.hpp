@@ -16,7 +16,7 @@ namespace Web {
 // array of { price, volume } objects.
 
 nlohmann::json orderBookToJson(
-    const MarketData::OrderBookContainer& book,
+    MarketData::OrderBookContainer& book,
     std::size_t depth = 20
 );
 
@@ -25,7 +25,7 @@ nlohmann::json orderBookToJson(
 // vector in a chart or table on the web page.
 
 nlohmann::json recentTradesToJson(
-    const MarketData::TradeVolumeContainer& tv,
+    MarketData::TradeVolumeContainer& tv,
     std::size_t count = 100
 );
 
