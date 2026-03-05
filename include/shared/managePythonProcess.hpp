@@ -22,6 +22,8 @@ private:
 
     boost::process::child pythonProcess_;
 
+    bool stopProcess_ {false};
+
 public:
     ManagePythonProcess(
         EventQueue<Event>& queue,
@@ -48,6 +50,9 @@ public:
     }
 
     auto endProcess() -> void {
+        stopProcess_ = true;
+        eventQueue_.getCv().notify_all();
+
         sendDataThread_.join();
         getDataThread_.join();
         pythonProcess_.wait();
@@ -59,13 +64,16 @@ private:
         auto eventQueueLock = std::unique_lock{eventQueue_.getMtx()};
         eventQueueLock.unlock();
 
-        while (true) {
+        while (!stopProcess_) {
             auto currEvents = EventQueue<Event>{};
 
             eventQueueLock.lock();
             eventQueueCv.wait(eventQueueLock, [this] () {
-                return eventQueue_.IsNotEmptyFlag();
+                return eventQueue_.IsNotEmptyFlag() || stopProcess_;
             });
+            if (stopProcess_) {
+                break;
+            }
             
             eventQueueLock.unlock();
 

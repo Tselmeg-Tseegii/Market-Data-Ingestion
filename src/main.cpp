@@ -66,9 +66,17 @@ int main() {
     if (stop == -1) {
         // readThread.stopThread();
         // manageDecisionPython.endProcess();
+        btcVolumeEventQueueDispatch.stopConsumerQueue(btcVolumePythonQueue);
+
+        std::cin >> stop;
+
+        manageDecisionPython.endProcess();
+
+        btcVolumeUpdater.stopThread();
 
         btcVolumeEventWebScoket.stopThread();
-        btcVolumeUpdater.stopThread();
+
+        btcVolumeEventQueueDispatch.stop();
 
     //     orderBookWebSocket.stopThread();
     //     orderBookUpdater.stopUpdate();
