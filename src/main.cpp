@@ -120,6 +120,9 @@ int main() {
         }
     });
 
+    // flag used by several handlers and threads
+    std::atomic<bool> running{true};
+
     // allow external requests to shut down the server
     svr.Post("/shutdown", [&](const httplib::Request&, httplib::Response& res) {
         res.set_content("shutting down", "text/plain");
@@ -127,7 +130,6 @@ int main() {
         svr.stop();
     });
 
-    std::atomic<bool> running{true};
     std::thread serverThread([&]{ svr.listen("0.0.0.0", 8080); });
 
     // also accept -1 on stdin, but do it in a separate thread so the main
