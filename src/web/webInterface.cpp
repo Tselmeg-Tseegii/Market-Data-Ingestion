@@ -4,7 +4,7 @@
 namespace Web {
 
 nlohmann::json orderBookToJson(
-    const MarketData::OrderBookContainer& book,
+    MarketData::OrderBookContainer& book,
     std::size_t depth
 ) {
     auto [asks, bids] = book.getOrderBook();
@@ -37,7 +37,7 @@ nlohmann::json orderBookToJson(
 }
 
 nlohmann::json recentTradesToJson(
-    const MarketData::TradeVolumeContainer& tv,
+    MarketData::TradeVolumeContainer& tv,
     std::size_t count
 ) {
     // we rely on the container's mutex to snapshot the current sequence

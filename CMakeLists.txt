@@ -8,7 +8,7 @@ add_compile_definitions(CPPHTTPLIB_OPENSSL_SUPPORT)
 
 list(APPEND CMAKE_PREFIX_PATH "/opt/local")
 
-find_package(Boost REQUIRED COMPONENTS system filesystem process)
+find_package(Boost REQUIRED COMPONENTS system filesystem)
 find_package(OpenSSL REQUIRED)
 
 include_directories(
@@ -43,7 +43,6 @@ add_executable(trader ${SOURCES})
 target_link_libraries(trader PRIVATE
     Boost::system
     Boost::filesystem
-    Boost::process
     OpenSSL::SSL
     OpenSSL::Crypto
 )
