@@ -2,7 +2,6 @@
 
 #include <string>
 #include <thread>
-#include <stdexcept>
 #include <boost/process.hpp>
 
 #include "shared/eventQueue.hpp"
@@ -37,21 +36,8 @@ public:
         , pipeFromPython_ {}
 
     {
-        // try to find an available python interpreter
-        auto pythonExe = boost::process::search_path("python3.13");
-        if (pythonExe.empty()) {
-            pythonExe = boost::process::search_path("python3");
-        }
-        if (pythonExe.empty()) {
-            pythonExe = boost::process::search_path("python");
-        }
-        
-        if (pythonExe.empty()) {
-            throw std::runtime_error("Could not find Python interpreter (tried python3.13, python3, python)");
-        }
-
         pythonProcess_ = boost::process::child{
-            pythonExe,
+            boost::process::search_path("python3.13"),
             "-u",
             pythonFile,
             boost::process::std_in < pipeToPython_,
@@ -104,7 +90,6 @@ private:
                     auto temp = PriceCandle{latestIntPrice};
                     std::cout << "python send: " << temp << '\n';
                     pipeToPython_ << temp << std::endl;
-                    latestIntPrice.clear();  // reset after sending so new scripts can start fresh
                 }
             }
         }
