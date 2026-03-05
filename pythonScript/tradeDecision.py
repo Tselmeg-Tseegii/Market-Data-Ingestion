@@ -113,43 +113,57 @@ def readAggregateCandle(readStream):
 def trainPredictModelLoop(readStream, needToPredict):
     preCandles = deque(maxlen = 10)
     preFeature = None
+    combined_count = 0
 
     while True:
         latestCombinedCandle = readAggregateCandle(readStream)
         if latestCombinedCandle is None:
             break
 
+        combined_count += 1
+        print(f"Processed combined candle {combined_count}", flush=True)
+
         if len(preCandles) != 10:
             preCandles.append(latestCombinedCandle)
             continue
 
-        currFeature = createFeature(latestCombinedCandle, preCandles)
+        try:
+            currFeature = createFeature(latestCombinedCandle, preCandles)
+        except Exception as e:
+            print(f"Error in createFeature: {e}", flush=True)
+            continue
 
         if preFeature is not None:
-            currRawBody = latestCombinedCandle.close_ - latestCombinedCandle.open_
+            try:
+                currRawBody = latestCombinedCandle.close_ - latestCombinedCandle.open_
 
-            preVolatilityArr = [(candle.high_ - candle.low_) for candle in preCandles]
-            preVolatility = sum(preVolatilityArr) / len(preVolatilityArr)
+                preVolatilityArr = [(candle.high_ - candle.low_) for candle in preCandles]
+                preVolatility = sum(preVolatilityArr) / len(preVolatilityArr)
 
-            noiseThreshold = preVolatility * 0.5 
+                noiseThreshold = preVolatility * 0.5 
 
-            slippageCost = preVolatility * 0.3
+                slippageCost = preVolatility * 0.3
 
-            label = "NEUTRAL"
-            
-            if currRawBody > (noiseThreshold + slippageCost):
-                label = "LONG"
-            elif currRawBody < -(noiseThreshold + slippageCost):
-                label = "SHORT"
+                label = "NEUTRAL"
                 
-            model.learn_one(preFeature, label)
+                if currRawBody > (noiseThreshold + slippageCost):
+                    label = "LONG"
+                elif currRawBody < -(noiseThreshold + slippageCost):
+                    label = "SHORT"
+                    
+                model.learn_one(preFeature, label)
+            except Exception as e:
+                print(f"Error in learning: {e}", flush=True)
         
         if needToPredict is True:
-            prediction = model.predict_one(currFeature)
-            probs = model.predict_proba_one(currFeature)
-            confidence = probs.get(prediction, 0.0)
+            try:
+                prediction = model.predict_one(currFeature)
+                probs = model.predict_proba_one(currFeature)
+                confidence = probs.get(prediction, 0.0)
 
-            print(f"prediction: ({latestCombinedCandle.timestamp_}, {prediction}, {confidence:.2f})")
+                print(f"prediction: ({latestCombinedCandle.timestamp_}, {prediction}, {confidence:.2f})", flush=True)
+            except Exception as e:
+                print(f"Error in prediction: {e}", flush=True)
 
         preCandles.append(latestCombinedCandle)
         preFeature = currFeature

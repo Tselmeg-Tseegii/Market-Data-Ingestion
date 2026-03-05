@@ -37,8 +37,8 @@ auto PriceCandleContainer::getData() -> std::vector<PriceCandle>& {
 }
 
 auto operator<<(std::ostream& out, const PriceCandle& candle) -> std::ostream& {
-    out << '(' << candle.candleOpen << ", " << candle.candleLow;
-    out << ", " << candle.candleHigh << ", " << candle.candleClose;
+    out << '(' << candle.candleOpen << ", " << candle.candleHigh;
+    out << ", " << candle.candleLow << ", " << candle.candleClose;
     out << ", " << candle.timeStamp << ')';
 
     return out;

@@ -49,4 +49,15 @@ auto TradeVolumeContainer::willGetNewData() -> bool {
     return willGetMoreData_;
 }
 
+
+auto TradeVolumeContainer::getLastTrades() -> std::vector<IntPriceVolume> {
+    auto lock = std::lock_guard<std::mutex>{mtx_};
+    std::vector<IntPriceVolume> result;
+    result.reserve(tradeVolumeSeq_.size());
+    for (auto& elem : tradeVolumeSeq_) {
+        result.push_back(elem);
+    }
+    return result;
+}
+
 }

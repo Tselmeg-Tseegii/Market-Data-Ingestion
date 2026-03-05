@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <map>
 #include <deque>
+#include <vector>  // required by getLastTrades return type
 
 #include "shared/marketDataTypes.hpp"
 #include "external/simdjson/simdjson.h"
@@ -31,6 +32,9 @@ public:
     auto setWillNotGetMoreData() -> void;
 
     auto willGetNewData() -> bool;
+
+    // snapshot the most recent trade volume events (up to the internal limit)
+    auto getLastTrades() -> std::vector<IntPriceVolume>;
 };
 
 }
