@@ -53,13 +53,39 @@ public:
         stopProcess_ = true;
         eventQueue_.getCv().notify_all();
 
-        sendDataThread_.join();
-        getDataThread_.join();
+        if (sendDataThread_.joinable()) sendDataThread_.join();
+        if (getDataThread_.joinable()) getDataThread_.join();
         try {
             pythonProcess_.wait();
         } catch (const boost::process::process_error& e) {
             std::cerr << "warning: error waiting for python process: " << e.what() << "\n";
         }
+    }
+
+    // destructor must not throw; split from endProcess so we can clean up safely
+    ~ManagePythonProcess() noexcept {
+        try {
+            stopProcess_ = true;
+            eventQueue_.getCv().notify_all();
+        } catch(...) {}
+        try {
+            if (sendDataThread_.joinable()) sendDataThread_.join();
+        } catch(...) {}
+        try {
+            if (getDataThread_.joinable()) getDataThread_.join();
+        } catch(...) {}
+        try {
+            if (pythonProcess_.running()) {
+                pythonProcess_.terminate();
+                pythonProcess_.wait();
+            }
+        } catch(...) {}
+        try {
+            pipeToPython_.close();
+        } catch(...) {}
+        try {
+            pipeFromPython_.close();
+        } catch(...) {}
     }
 
 private:
