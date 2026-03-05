@@ -55,7 +55,11 @@ public:
 
         sendDataThread_.join();
         getDataThread_.join();
-        pythonProcess_.wait();
+        try {
+            pythonProcess_.wait();
+        } catch (const boost::process::process_error& e) {
+            std::cerr << "warning: error waiting for python process: " << e.what() << "\n";
+        }
     }
 
 private:
@@ -89,13 +93,25 @@ private:
                 if (latestIntPrice.size() == 100) {
                     auto temp = PriceCandle{latestIntPrice};
                     std::cout << "python send: " << temp << '\n';
-                    pipeToPython_ << temp << std::endl;
+                    try {
+                        pipeToPython_ << temp << std::endl;
+                    } catch (const boost::process::process_error& e) {
+                        std::cerr << "warning: failed to send to python (" << e.what() << ")\n";
+                        // process may have died; we'll break out and let shutdown proceed
+                        stopProcess_ = true;
+                        break;
+                    }
+                    latestIntPrice.clear();  // reset after sending so new scripts can start fresh
                 }
             }
         }
 
-        pipeToPython_ << "STOP" << std::endl;
-        pipeToPython_.close();
+        try {
+            pipeToPython_ << "STOP" << std::endl;
+            pipeToPython_.close();
+        } catch (const boost::process::process_error& e) {
+            std::cerr << "warning: broken pipe when signalling stop: " << e.what() << "\n";
+        }
     }
 
     auto getDataFromPython() -> void {
