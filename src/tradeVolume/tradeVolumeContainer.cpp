@@ -12,7 +12,7 @@ auto TradeVolumeContainer::updateFromEvent(TradeVolumeWebSocketEvent& event) -> 
         tradeVolumeMap_[event.intPrice] += event.intVolume;
         tradeVolumeSeq_.emplace_back(event.intPrice, event.intVolume);
 
-        if (tradeVolumeSeq_.size() > 100) {
+        if (tradeVolumeSeq_.size() > 20) {
             auto& frontElem = tradeVolumeSeq_.front();
             auto foundIt = tradeVolumeMap_.find(frontElem.intPrice);
             foundIt->second -= frontElem.intVolume;
