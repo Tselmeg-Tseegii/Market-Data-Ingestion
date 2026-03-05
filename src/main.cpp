@@ -1,6 +1,9 @@
 #include <iostream>
 #include <fstream>
 #include <iterator>
+#include <filesystem>
+#include <atomic>
+#include <thread>
 
 #include "shared/marketDataTypes.hpp"
 #include "shared/eventQueue.hpp"
@@ -71,16 +74,24 @@ int main() {
     });
 
     svr.Post("/runscript", [&](const httplib::Request& req, httplib::Response& res) {
-        std::string tmpFile = "pythonScript/user_script.py";
-        {
-            std::ofstream out(tmpFile);
-            out << req.body;
+        try {
+            // ensure pythonScript directory exists
+            std::filesystem::create_directories("pythonScript");
+            
+            std::string tmpFile = "pythonScript/user_script.py";
+            {
+                std::ofstream out(tmpFile);
+                out << req.body;
+            }
+            if (manageDecisionPython) {
+                manageDecisionPython->endProcess();
+            }
+            manageDecisionPython = std::make_unique<ManagePythonProcess<TradeVolumeWebSocketEvent>>(btcVolumePythonQueue, tmpFile, "data/predictionData.txt");
+            res.set_content("started", "text/plain");
+        } catch (const std::exception& e) {
+            res.set_content(std::string("error: ") + e.what(), "text/plain");
+            res.status = 500;
         }
-        if (manageDecisionPython) {
-            manageDecisionPython->endProcess();
-        }
-        manageDecisionPython = std::make_unique<ManagePythonProcess<TradeVolumeWebSocketEvent>>(btcVolumePythonQueue, tmpFile, "data/predictionData.txt");
-        res.set_content("started", "text/plain");
     });
 
     svr.Post("/stop", [&](const httplib::Request&, httplib::Response& res) {
@@ -97,24 +108,59 @@ int main() {
         res.set_content(content, "text/plain");
     });
 
+    // serve the dashboard HTML file
+    svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
+        std::ifstream in("index.html");
+        if (in) {
+            std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            res.set_content(content, "text/html");
+        } else {
+            res.set_content("index.html not found", "text/plain");
+            res.status = 404;
+        }
+    });
+
+    // allow external requests to shut down the server
+    svr.Post("/shutdown", [&](const httplib::Request&, httplib::Response& res) {
+        res.set_content("shutting down", "text/plain");
+        running = false;
+        svr.stop();
+    });
+
+    std::atomic<bool> running{true};
     std::thread serverThread([&]{ svr.listen("0.0.0.0", 8080); });
 
-    // make shutdown identical to prior behaviour
-    int stop{};
-    std::cin >> stop;
-    if (stop == -1) {
-        btcVolumeEventQueueDispatch.stopConsumerQueue(btcVolumePythonQueue);
-        if (manageDecisionPython) {
-            manageDecisionPython->endProcess();
+    // also accept -1 on stdin, but do it in a separate thread so the main
+    // event loop isn't blocked (some environments don't have a console).
+    std::thread inputThread([&](){
+        int stop;
+        while (running && std::cin >> stop) {
+            if (stop == -1) {
+                running = false;
+                svr.stop();
+                break;
+            }
         }
+    });
 
-        btcVolumeUpdater.stopThread();
-        btcVolumeEventWebScoket.stopThread();
-        btcVolumeEventQueueDispatch.stop();
-
-        orderBookWebSocket.stopThread();
-        orderBookUpdater.stopUpdate();
+    // wait for shutdown signal
+    while (running) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
+    // cleanup same as before
+    btcVolumeEventQueueDispatch.stopConsumerQueue(btcVolumePythonQueue);
+    if (manageDecisionPython) {
+        manageDecisionPython->endProcess();
+    }
+
+    btcVolumeUpdater.stopThread();
+    btcVolumeEventWebScoket.stopThread();
+    btcVolumeEventQueueDispatch.stop();
+
+    orderBookWebSocket.stopThread();
+    orderBookUpdater.stopUpdate();
+
     serverThread.join();
+    inputThread.join();
 }

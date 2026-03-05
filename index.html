@@ -142,14 +142,21 @@
 
         <div class="section script-section">
             <h2>🐍 Python Script Control</h2>
-            <p>Paste your Python trading script below. It will receive trade data and can output predictions.</p>
+            <p>Paste your Python trading script below. It will receive trade data via stdin and can output predictions.</p>
             <textarea id="scriptInput" placeholder="import sys
-# Your Python script here
-# Example:
-# while True:
-#     data = input()
-#     # Process data
-#     print('Prediction: ...')
+
+# Your script receives trade updates via stdin
+# Example that works:
+try:
+    for line in sys.stdin:
+        line = line.strip()
+        if line == 'STOP':
+            break
+        # Parse and process trade data
+        print(f'Processing: {line}')
+        sys.stdout.flush()
+except KeyboardInterrupt:
+    pass
 "></textarea><br>
             <button class="run-btn" onclick="runScript()">▶️ Run Script</button>
             <button class="stop-btn" onclick="stopScript()">⏹️ Stop Script</button>

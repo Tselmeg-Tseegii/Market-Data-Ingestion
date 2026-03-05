@@ -2,6 +2,7 @@
 
 #include <string>
 #include <thread>
+#include <stdexcept>
 #include <boost/process.hpp>
 
 #include "shared/eventQueue.hpp"
@@ -36,8 +37,21 @@ public:
         , pipeFromPython_ {}
 
     {
+        // try to find an available python interpreter
+        auto pythonExe = boost::process::search_path("python3.13");
+        if (pythonExe.empty()) {
+            pythonExe = boost::process::search_path("python3");
+        }
+        if (pythonExe.empty()) {
+            pythonExe = boost::process::search_path("python");
+        }
+        
+        if (pythonExe.empty()) {
+            throw std::runtime_error("Could not find Python interpreter (tried python3.13, python3, python)");
+        }
+
         pythonProcess_ = boost::process::child{
-            boost::process::search_path("python3.13"),
+            pythonExe,
             "-u",
             pythonFile,
             boost::process::std_in < pipeToPython_,
