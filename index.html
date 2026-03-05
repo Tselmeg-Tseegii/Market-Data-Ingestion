@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Market Data Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 { margin: 0; font-size: 2.5em; }
+        .section {
+            margin: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+        }
+        .section h2 {
+            color: #495057;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        .asks { color: #dc3545; }
+        .bids { color: #28a745; }
+        .script-section {
+            background: #e3f2fd;
+            border-left: 5px solid #2196f3;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            border: 2px solid #ced4da;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+        button {
+            padding: 12px 24px;
+            margin: 10px 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        .run-btn { background: #28a745; color: white; }
+        .run-btn:hover { background: #218838; }
+        .stop-btn { background: #dc3545; color: white; }
+        .stop-btn:hover { background: #c82333; }
+        #scriptOutput {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Live Market Data Dashboard</h1>
+        </header>
+
+        <div class="section">
+            <h2>📈 Order Book (Top 20)</h2>
+            <div id="orderbook">
+                <h3 class="asks">Asks (Sell)</h3>
+                <table id="asksTable">
+                    <thead>
+                        <tr><th>Price</th><th>Volume</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <h3 class="bids">Bids (Buy)</h3>
+                <table id="bidsTable">
+                    <thead>
+                        <tr><th>Price</th><th>Volume</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💹 Recent Trades (Last 100)</h2>
+            <table id="tradesTable">
+                <thead>
+                    <tr><th>Price</th><th>Volume</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="section script-section">
+            <h2>🐍 Python Script Control</h2>
+            <p>Paste your Python trading script below. It will receive trade data and can output predictions.</p>
+            <textarea id="scriptInput" placeholder="import sys
+# Your Python script here
+# Example:
+# while True:
+#     data = input()
+#     # Process data
+#     print('Prediction: ...')
+"></textarea><br>
+            <button class="run-btn" onclick="runScript()">▶️ Run Script</button>
+            <button class="stop-btn" onclick="stopScript()">⏹️ Stop Script</button>
+            <div id="status" class="status"></div>
+        </div>
+
+        <div class="section">
+            <h2>📝 Script Output</h2>
+            <pre id="scriptOutput">Waiting for script output...</pre>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData(url) {
+            try {
+                const response = await fetch(url);
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                return null;
+            }
+        }
+
+        async function fetchText(url) {
+            try {
+                const response = await fetch(url);
+                return await response.text();
+            } catch (error) {
+                console.error('Error fetching text:', error);
+                return '';
+            }
+        }
+
+        function updateOrderBook(data) {
+            if (!data) return;
+            const asksTable = document.getElementById('asksTable').querySelector('tbody');
+            const bidsTable = document.getElementById('bidsTable').querySelector('tbody');
+
+            asksTable.innerHTML = '';
+            bidsTable.innerHTML = '';
+
+            data.asks.forEach(item => {
+                const row = asksTable.insertRow();
+                row.className = 'asks';
+                row.insertCell(0).textContent = item.price.toFixed(2);
+                row.insertCell(1).textContent = item.volume.toFixed(8);
+            });
+
+            data.bids.forEach(item => {
+                const row = bidsTable.insertRow();
+                row.className = 'bids';
+                row.insertCell(0).textContent = item.price.toFixed(2);
+                row.insertCell(1).textContent = item.volume.toFixed(8);
+            });
+        }
+
+        function updateTrades(data) {
+            if (!data) return;
+            const table = document.getElementById('tradesTable').querySelector('tbody');
+            table.innerHTML = '';
+
+            data.trades.forEach(item => {
+                const row = table.insertRow();
+                row.insertCell(0).textContent = item.price.toFixed(2);
+                row.insertCell(1).textContent = item.volume.toFixed(8);
+            });
+        }
+
+        function updateScriptOutput(text) {
+            document.getElementById('scriptOutput').textContent = text || 'Waiting for script output...';
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            setTimeout(() => status.style.display = 'none', 3000);
+        }
+
+        async function runScript() {
+            const script = document.getElementById('scriptInput').value.trim();
+            if (!script) {
+                showStatus('Please enter a script first.', 'error');
+                return;
+            }
+            try {
+                const response = await fetch('/runscript', {
+                    method: 'POST',
+                    body: script
+                });
+                if (response.ok) {
+                    showStatus('Script started successfully!', 'success');
+                } else {
+                    showStatus('Failed to start script.', 'error');
+                }
+            } catch (error) {
+                console.error('Error running script:', error);
+                showStatus('Error running script.', 'error');
+            }
+        }
+
+        async function stopScript() {
+            try {
+                const response = await fetch('/stop', { method: 'POST' });
+                if (response.ok) {
+                    showStatus('Script stopped.', 'success');
+                } else {
+                    showStatus('Failed to stop script.', 'error');
+                }
+            } catch (error) {
+                console.error('Error stopping script:', error);
+                showStatus('Error stopping script.', 'error');
+            }
+        }
+
+        async function updateAll() {
+            const orderBookData = await fetchData('/orderbook');
+            updateOrderBook(orderBookData);
+
+            const tradesData = await fetchData('/trades');
+            updateTrades(tradesData);
+
+            const output = await fetchText('/scriptOutput');
+            updateScriptOutput(output);
+        }
+
+        // Update every 2 seconds
+        setInterval(updateAll, 2000);
+        // Initial load
+        updateAll();
+    </script>
+</body>
+</html>

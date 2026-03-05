@@ -8,7 +8,11 @@ add_compile_definitions(CPPHTTPLIB_OPENSSL_SUPPORT)
 
 list(APPEND CMAKE_PREFIX_PATH "/opt/local")
 
-find_package(Boost REQUIRED COMPONENTS system filesystem process)
+# boost::process is header-only and isn't shipped with older Boost CMake
+# config files (e.g. 1.76); we only need the include path so don't request it
+# as a component.  If you have a newer Boost you can enable it by uncommenting
+# the line below, but it's not strictly required.
+find_package(Boost REQUIRED COMPONENTS system filesystem)
 find_package(OpenSSL REQUIRED)
 
 include_directories(
@@ -43,7 +47,6 @@ add_executable(trader ${SOURCES})
 target_link_libraries(trader PRIVATE
     Boost::system
     Boost::filesystem
-    Boost::process
     OpenSSL::SSL
     OpenSSL::Crypto
 )
