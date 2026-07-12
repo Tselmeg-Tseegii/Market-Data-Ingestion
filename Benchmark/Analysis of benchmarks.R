@@ -35,11 +35,15 @@ TVUpdaterWaitWithConsume <- scan("newImplem/tradeVolumeUpdaterWaitForWithConsume
 TVAbsTimeOfUpdate <- scan("newImplem/tradeVolumeUpdateFromEventAbsTime.txt")
 TVAbsTimeOfUpdateTwo <- scan("newImplem/tradeVolumeUpdateFromEventAbsTimeTwo.txt")
 
+
+TVUpdaterMakesHeap <- scan("newImplem/tradeVolumeUpdaterSpliceMakesHeap.txt")
+TVUpdaterMakesNoHeap <- scan("newImplem/tradeVolumeUpdaterSpliceMakesNoHeap.txt")
+
 par(mfrow = c(2, 2))
 
 compare <- function(old, new) {
-  old <- old[old <= 40000]
-  new <- new[new <= 40000]
+  old <- old[old <= 400000]
+  new <- new[new <= 400000]
   
   cat("OLD\n")
   cat("Mean:  ", mean(old), "\n")
@@ -55,11 +59,13 @@ compare <- function(old, new) {
   maxNew = max(new)
   maxAll = max(maxOld, maxNew)
   
-  hist(old, breaks = 1000, xlim = c(0, 40000))
+  hist(old, breaks = 1000, xlim = c(0, 400000))
   plot(old, type = "p")
-  hist(new, breaks = 1000, xlim = c(0, 40000))
+  hist(new, breaks = 1000, xlim = c(0, 400000))
   plot(new, type = "p")
 }
+
+compare(TVUpdaterMakesHeap, TVUpdaterMakesNoHeap)
 
 compare(oldOBUpdateEvent, newOBUpdateEvent)
 compare(oldOBWebRead, newOBWebRead)

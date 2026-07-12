@@ -23,8 +23,9 @@ auto TradeVolumeUpdater::updateFromEventQueue() -> void {
     auto eventQueueLock = std::unique_lock{queue_.getMtx()};
     eventQueueLock.unlock();
 
+    auto currEvents = EventQueue<TradeVolumeWebSocketEvent>{};
+
     while (true) {
-        auto currEvents = EventQueue<TradeVolumeWebSocketEvent>{};
 
         eventQueueLock.lock();
         eventQueueCv.wait(eventQueueLock, [this] () {
@@ -46,6 +47,8 @@ auto TradeVolumeUpdater::updateFromEventQueue() -> void {
 
             container_.updateFromEvent(currEvent);
         }
+
+        currEvents.clear();
     }
 }
 
