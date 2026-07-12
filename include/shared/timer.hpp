@@ -14,7 +14,7 @@ private:
 public:
     Timer();
 
-    ~Timer();
+    Timer(const Timer& other);
 
     auto stop() -> void;
 

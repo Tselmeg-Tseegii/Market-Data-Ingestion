@@ -8,8 +8,8 @@ Timer::Timer() {
     start_ = std::chrono::high_resolution_clock::now();
 }
 
-Timer::~Timer() {
-    // this->stop();
+Timer::Timer(const Timer& other) {
+    start_ = other.start_;
 }
 
 auto Timer::stop() -> void {

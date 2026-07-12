@@ -7,6 +7,8 @@ namespace MarketData {
 
 auto TradeVolumeContainer::updateFromEvent(TradeVolumeWebSocketEvent& event) -> void {
     this->tradeVolume_[event.intPrice] += event.intVolume;
+
+    event.timer_.stop();
 }
 
 auto TradeVolumeContainer::print() -> void {

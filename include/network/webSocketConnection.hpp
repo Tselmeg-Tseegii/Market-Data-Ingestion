@@ -10,6 +10,7 @@
 
 #include "shared/eventQueue.hpp"
 #include "external/simdjson/simdjson.h"
+#include "shared/timer.hpp"
 
 namespace MarketData {
 
@@ -92,6 +93,8 @@ private:
         while (true) {
             webSocket.read(streamBuffer);
 
+            auto timer = Timer{};
+
             if (streamBuffer.capacity() < streamBuffer.size() + simdjson::SIMDJSON_PADDING) {
                 streamBuffer.reserve(streamBuffer.size() + simdjson::SIMDJSON_PADDING);
             }
@@ -102,7 +105,7 @@ private:
                 simdjson::padded_string_view(currEventDataPtr, streamBuffer.size(), streamBuffer.capacity())
             ).get(doc);
 
-            auto event = Event{doc};
+            auto event = Event{doc, timer};
 
             eventQueue_.pushAndNotify(event);
 

@@ -9,8 +9,9 @@ namespace MarketData {
 class TradeVolumeWebSocketEvent: public IntPriceVolume {
 
 public:
+    Timer timer_;
 
-    TradeVolumeWebSocketEvent(simdjson::ondemand::document& doc);
+    TradeVolumeWebSocketEvent(simdjson::ondemand::document& doc, const Timer& timer);
 
 };
 
